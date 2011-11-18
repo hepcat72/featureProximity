@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '1.0';
+my $software_version_number = '1.2';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -65,19 +65,19 @@ my $GetOptHash =
    'f|feature-file=s'   => sub {push(@feature_files,   #REQUIRED unless <> is
 				     [sglob($_[1])])}, #         supplied
    'r|search-range=s'    => \$search_range,              #OPTIONAL [1000000]
-   'c|data-chr1-col=s'   => \$data_chr1_col,             #OPTIONAL []
-   'a|feat-chr1-col=s'   => \$feat_chr1_col,             #OPTIONAL []
-   'b|data-begin1-col=s' => \$data_start1_col,           #OPTIONAL []
-   'j|feat-begin1-col=s' => \$feat_start1_col,           #OPTIONAL []
-   'e|data-end1-col=s'   => \$data_end1_col,             #OPTIONAL []
-   'k|feat-end1-col=s'   => \$feat_end1_col,             #OPTIONAL []
+   'c|data-chr1-col=s'   => \$data_chr1_col,             #OPTIONAL [1]
+   'a|feat-chr1-col=s'   => \$feat_chr1_col,             #OPTIONAL [1]
+   'b|data-begin1-col=s' => \$data_start1_col,           #OPTIONAL [2]
+   'j|feat-begin1-col=s' => \$feat_start1_col,           #OPTIONAL [19]
+   'e|data-end1-col=s'   => \$data_end1_col,             #OPTIONAL [3]
+   'k|feat-end1-col=s'   => \$feat_end1_col,             #OPTIONAL [19]
 
-   'h|data-chr2-col=s'   => \$data_chr2_col,             #OPTIONAL []
-   'l|feat-chr2-col=s'   => \$feat_chr2_col,             #OPTIONAL []
-   'g|data-begin2-col=s' => \$data_start2_col,           #OPTIONAL []
-   'p|feat-begin2-col=s' => \$feat_start2_col,           #OPTIONAL []
-   'n|data-end2-col=s'   => \$data_end2_col,             #OPTIONAL []
-   't|feat-end2-col=s'   => \$feat_end2_col,             #OPTIONAL []
+   'h|data-chr2-col=s'   => \$data_chr2_col,             #OPTIONAL [0]
+   'l|feat-chr2-col=s'   => \$feat_chr2_col,             #OPTIONAL [4]
+   'g|data-begin2-col=s' => \$data_start2_col,           #OPTIONAL [0]
+   'p|feat-begin2-col=s' => \$feat_start2_col,           #OPTIONAL [20]
+   'n|data-end2-col=s'   => \$data_end2_col,             #OPTIONAL [0]
+   't|feat-end2-col=s'   => \$feat_end2_col,             #OPTIONAL [20]
 
    'd|data-id-col=s'    => sub {push(@data_id_cols,    #OPTIONAL [4]
 				     map {split(/\D+/,$_)} sglob($_[1]))},
@@ -769,6 +769,11 @@ foreach my $input_file_set (@input_files)
 		    next;
 		  }
 
+		$feat_chr1 = uc($feat_chr1);
+		$feat_chr1 =~ s/chr(omosome)?/chr/i;
+		if($feat_chr1 !~ /^chr/)
+		  {$feat_chr1 = "chr$feat_chr1"}
+
 		if($feat_id !~ /\S/)
 		  {
 		    error("Invalid feature ID: [$feat_id] in column(s) [",
@@ -852,10 +857,22 @@ foreach my $input_file_set (@input_files)
 			next;
 		      }
 
+		    $feat_chr2 = uc($feat_chr2);
+		    $feat_chr2 =~ s/chr(omosome)?/chr/i;
+		    if($feat_chr2 !~ /^chr/)
+		      {$feat_chr2 = "chr$feat_chr2"}
+
 		    #Order the coordinates
 		    ($feat_start2,$feat_end2) = sort {$a <=> $b}
 		      ($feat_start2,$feat_end2);
 		  }
+
+		debug("Adding feature: ID => $feat_id, SAMPLE => ",
+		      "$feat_sample, CHR1 => $feat_chr1, START1 => ",
+		      "$feat_start1, STOP1 => $feat_end1",
+		      (defined($feat_chr2) ?
+		       ", CHR2 => $feat_chr2, START2 => $feat_start2, STOP2 " .
+		       "=> $feat_end2\n" : ''));
 
 		push(@{$feature_hash->{$current_feature_file}},
 		     {ID      => $feat_id,
@@ -1139,6 +1156,11 @@ foreach my $input_file_set (@input_files)
 		next;
 	      }
 
+	    $data_chr1 = uc($data_chr1);
+	    $data_chr1 =~ s/chr(omosome)?/chr/i;
+	    if($data_chr1 !~ /^chr/)
+	      {$data_chr1 = "chr$data_chr1"}
+
 	    if($data_id !~ /\S/)
 	      {
 		error("Invalid ID: [$data_id] in column [",
@@ -1220,6 +1242,11 @@ foreach my $input_file_set (@input_files)
 		    next;
 		  }
 
+		$data_chr2 = uc($data_chr2);
+		$data_chr2 =~ s/chr(omosome)?/chr/i;
+		if($data_chr2 !~ /^chr/)
+		  {$data_chr2 = "chr$data_chr2"}
+
 		if($data_id !~ /\S/)
 		  {
 		    error("Invalid ID: [$data_id] in column [",
@@ -1233,6 +1260,13 @@ foreach my $input_file_set (@input_files)
 		($data_start2,$data_end2) = sort {$a <=> $b}
 		  ($data_start2,$data_end2);
 	      }
+
+	    debug("Comparing features with input record: [chr1: $data_chr1, ",
+		  "start1: $data_start1, end1: $data_end1",
+		  (defined($data_chr2) ?
+		   ", chr2: $data_chr2, start2: $data_start2, end2: $data_end2"
+		   : ''),
+		  "] using search range distance: $search_range");
 
 	    #Get the closest feature to each start1/end1 and start2/end2 pair
 	    #There are 2 pairs of coordinates because this is designed to
@@ -1263,8 +1297,11 @@ foreach my $input_file_set (@input_files)
 	    # COMMENT
 	    # DISTANCE
 
+	    if(scalar(keys(%$feature1)))
+	      {debug("Found a feature for chr1/start1/stop1")}
+
 	    my $sum_distances1 = 0;
-	    foreach my $samp (keys(%{$feature1}))
+	    foreach my $samp (keys(%$feature1))
 	      {$sum_distances1 += $feature1->{$samp}->{DISTANCE}}
 	    my $sum_distances2 = 0;
 	    if($data_start2_col)
@@ -2463,6 +2500,16 @@ sub getClosestFeature
     my $closest_feat     = {};
     my $closest_distance = {};
 
+    #Make shure chromosome naming conventions are the same between the files
+    my $num_inspected = scalar(grep {$_->{CHR1} eq $chr1 ||
+				       (exists($_->{CHR2}) &&
+					defined($_->{CHR2}) &&
+					$_->{CHR2} eq $chr1)} @$features);
+    unless($num_inspected)
+      {warning("No features were inspected for chromosome: [$chr1].  Please ",
+	       "check to make sure that the chromosome naming styles are the ",
+	       "same between your feature file and input file.")}
+
     #Note: features are sorted on the start1 coordinate (which is always less
     #than the stop1 coordinate) however since we can't sort both on start1 and
     #start2, we must traverse the whole loop.  I'll optimize this if necessary
@@ -2472,16 +2519,35 @@ sub getClosestFeature
 			      abs($start1-$_->{STOP1})  <= $search_range ||
 			      abs($start1-$_->{START1}) <= $search_range ||
 			      abs($stop1-$_->{STOP1})   <= $search_range ||
-			      abs($stop1-$_->{START1})  <= $search_range)) ||
+			      abs($stop1-$_->{START1})  <= $search_range ||
+			      #The start1 is inside the feature
+			      ($start1 >= $_->{START1} &&
+			       $start1 <= $_->{STOP1}) ||
+			      #The stop1 is inside the feature
+			      ($stop1 >= $_->{START1} &&
+			       $stop1 <= $_->{STOP1}) ||
+			      #The start1 and stop1 encompass the feature
+			      ($start1 <= $_->{START1} &&
+			       $stop1 >= $_->{STOP1}))) ||
 				(exists($_->{CHR2}) && defined($_->{CHR2}) &&
 				 $_->{CHR2} eq $chr1 &&
 				 ($search_range == 0 ||
 				  abs($start1-$_->{STOP2})  <= $search_range ||
 				  abs($start1-$_->{START2}) <= $search_range ||
 				  abs($stop1-$_->{STOP2})   <= $search_range ||
-				  abs($stop1-$_->{START2})  <= $search_range))}
+				  abs($stop1-$_->{START2})  <= $search_range ||
+				  #The start1 is inside the feature
+				  ($start1 >= $_->{START2} &&
+				   $start1 <= $_->{STOP2}) ||
+				  #The stop1 is inside the feature
+				  ($stop1 >= $_->{START2} &&
+				   $stop1 <= $_->{STOP2}) ||
+				  #The start1 and stop1 encompass the feature
+				  ($start1 <= $_->{START2} &&
+				   $stop1 >= $_->{STOP2})))}
 		      @$features)
       {
+	$num_inspected++;
 	debug("Inspecting [$chr1 $start1 $stop1] with [$feat->{CHR1} ",
 	      "$feat->{START1} $feat->{STOP1} ",
 	      (exists($feat->{CHR2}) && defined($feat->{CHR2}) ?
@@ -2561,14 +2627,32 @@ sub getClosestFeature
 			      abs($start2-$_->{STOP1})  <= $search_range ||
 			      abs($start2-$_->{START1}) <= $search_range ||
 			      abs($stop2-$_->{STOP1})   <= $search_range ||
-			      abs($stop2-$_->{START1})  <= $search_range)) ||
+			      abs($stop2-$_->{START1})  <= $search_range ||
+			      #The start2 is inside the feature
+			      ($start2 >= $_->{START1} &&
+			       $start2 <= $_->{STOP1}) ||
+			      #The stop2 is inside the feature
+			      ($stop2 >= $_->{START1} &&
+			       $stop2 <= $_->{STOP1}) ||
+			      #The start2 and stop2 encompass the feature
+			      ($start2 <= $_->{START1} &&
+			       $stop2 >= $_->{STOP1}))) ||
 				(exists($_->{CHR2}) && defined($_->{CHR2}) &&
 				 $_->{CHR2} eq $chr2 &&
 				 ($search_range == 0 ||
 				  abs($start2-$_->{STOP2})  <= $search_range ||
 				  abs($start2-$_->{START2}) <= $search_range ||
 				  abs($stop2-$_->{STOP2})   <= $search_range ||
-				  abs($stop2-$_->{START2})  <= $search_range))}
+				  abs($stop2-$_->{START2})  <= $search_range ||
+				  #The start2 is inside the feature
+				  ($start2 >= $_->{START2} &&
+				   $start2 <= $_->{STOP2}) ||
+				  #The stop2 is inside the feature
+				  ($stop2 >= $_->{START2} &&
+				   $stop2 <= $_->{STOP2}) ||
+				  #The start2 and stop2 encompass the feature
+				  ($start2 <= $_->{START2} &&
+				   $stop2 >= $_->{STOP2})))}
 			  @$features)
 	  {
 	    if($feat->{CHR1} eq $chr2)
