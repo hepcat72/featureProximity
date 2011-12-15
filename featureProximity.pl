@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '1.2';
+my $software_version_number = '1.3';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -1047,8 +1047,7 @@ foreach my $input_file_set (@input_files)
 	      "Chr",($data_start2_col ? '1' : ''),"\t",
 	      "Start",($data_start2_col ? '1' : ''),"\t",
 	      "End",($data_start2_col ? '1' : ''),"\t",
-	      (scalar(keys(%{$current_sample_hash})) > 1 ?
-	       "NumSamples\tSumDistances\t" : ''),
+	      "NumSamples\tSumDistances\t",
 	      join("\t",map {$_ . "(FeatID:Distance)"}
 		   sort {$a cmp $b} keys(%$current_sample_hash)),"\t",
 
@@ -1056,11 +1055,10 @@ foreach my $input_file_set (@input_files)
 	      ($data_start2_col ?
 	       "Chr2\tStart2\tEnd2\t" .
 	       join('',
-		    ((scalar(keys(%{$current_sample_hash})) > 1 ?
-		      "NumSamples\tSumDistances\t" : ''),
+		    ("NumSamples\tSumDistances\t",
 		     join("\t",map {$_ . "(FeatID:Distance)"}
-			  sort {$a cmp $b} keys(%$current_sample_hash)),"\t")) :
-	       ''),
+			  sort {$a cmp $b} keys(%$current_sample_hash)),"\t"))
+	       : ''),
 
 	      "CommentColumns...\n");
 
@@ -1326,25 +1324,34 @@ foreach my $input_file_set (@input_files)
 	    # - a column for each sample
 
 	    print("$data_id\t$data_chr1\t$data_start1\t$data_end1\t",
-		  (scalar(keys(%{$current_sample_hash})) > 1 ?
-		   scalar(keys(%$feature1)) . "\t$sum_distances1\t" : ''),
+		  scalar(keys(%$feature1)) . "\t$sum_distances1\t",
 		  join("\t",
 		       map{exists($feature1->{$_}) ?
-			     "$_($feature1->{$_}->{ID}:" .
-			       "$feature1->{$_}->{DISTANCE})" : ''}
+			     "$_($feature1->{$_}->{ID}" .
+			       (exists($feature1->{$_}->{OTHERS}) &&
+				scalar(keys(%{$feature1->{$_}->{OTHERS}})) ?
+				',' .
+				join(',',keys(%{$feature1->{$_}->{OTHERS}})) :
+				'') .
+			       ":$feature1->{$_}->{DISTANCE})" : ''}
 		       sort {$a cmp $b} keys(%$current_sample_hash)),"\t",
 
 		  #If data has a second pair of coordinates, output feature2
 		  ($data_start2_col ?
 		   "$data_chr2\t$data_start2\t$data_end2\t" .
 		   join('',
-			((scalar(keys(%{$current_sample_hash})) > 1 ?
-			  scalar(keys(%$feature2)) . "\t$sum_distances2\t" :
-			  ''),
+			(scalar(keys(%$feature2)) . "\t$sum_distances2\t",
 			 join("\t",
 			      map{exists($feature2->{$_}) ?
-				    "$_($feature2->{$_}->{ID}:" .
-				      "$feature2->{$_}->{DISTANCE})" : ''}
+				    "$_($feature2->{$_}->{ID}" .
+				      (exists($feature2->{$_}->{OTHERS}) &&
+				       scalar(keys(%{$feature2->{$_}
+						       ->{OTHERS}})) ?
+				       ',' .
+				       join(',',keys(%{$feature2->{$_}
+							 ->{OTHERS}})) :
+				       '') .
+					 ":$feature2->{$_}->{DISTANCE})" : ''}
 			      sort {$a cmp $b} keys(%$current_sample_hash)),
 			 "\t")) :
 		   ''),
@@ -2514,10 +2521,14 @@ sub getClosestFeature
     #than the stop1 coordinate) however since we can't sort both on start1 and
     #start2, we must traverse the whole loop.  I'll optimize this if necessary
     #later
-    foreach my $feat (grep {($_->{CHR1} eq $chr1 &&
-			     ($search_range == 0 ||
+    foreach my $feat (grep {(#The feature is on the same chromosome
+			     $_->{CHR1} eq $chr1 &&
+			     (#There is no limit to the search range
+			      $search_range == 0 ||
+			      #start1 is within the search range of the feature
 			      abs($start1-$_->{STOP1})  <= $search_range ||
 			      abs($start1-$_->{START1}) <= $search_range ||
+			      #stop1 is within the search range of the feature
 			      abs($stop1-$_->{STOP1})   <= $search_range ||
 			      abs($stop1-$_->{START1})  <= $search_range ||
 			      #The start1 is inside the feature
@@ -2529,11 +2540,16 @@ sub getClosestFeature
 			      #The start1 and stop1 encompass the feature
 			      ($start1 <= $_->{START1} &&
 			       $stop1 >= $_->{STOP1}))) ||
-				(exists($_->{CHR2}) && defined($_->{CHR2}) &&
+				(#There exists a second set of coordinates for
+				 #the feature and the chromosome is the same
+				 exists($_->{CHR2}) && defined($_->{CHR2}) &&
 				 $_->{CHR2} eq $chr1 &&
-				 ($search_range == 0 ||
+				 (#There is no limit to the search range
+				  $search_range == 0 ||
+				  #start1 is w/in the search range of the feat.
 				  abs($start1-$_->{STOP2})  <= $search_range ||
 				  abs($start1-$_->{START2}) <= $search_range ||
+				  #stop1 is w/in the search range of the feat.
 				  abs($stop1-$_->{STOP2})   <= $search_range ||
 				  abs($stop1-$_->{START2})  <= $search_range ||
 				  #The start1 is inside the feature
@@ -2553,6 +2569,12 @@ sub getClosestFeature
 	      (exists($feat->{CHR2}) && defined($feat->{CHR2}) ?
 	       "$feat->{CHR2} $feat->{START2} $feat->{STOP2}" : '  '),"].");
 
+	#Strip any distances which have previously been added by previous calls
+	if(exists($feat->{DISTANCE}))
+	  {delete($feat->{DISTANCE})}
+	if(exists($feat->{OTHERS}))
+	  {delete($feat->{OTHERS})}
+
 	if($feat->{CHR1} eq $chr1)
 	  {
 	    if(#The start1 is inside the feature
@@ -2562,9 +2584,20 @@ sub getClosestFeature
 	       #The start1 and stop1 encompass the feature
 	       ($start1 <= $feat->{START1} && $stop1 >= $feat->{STOP1}))
 	      {
-		$closest_feat->{$feat->{SAMPLE}} = $feat;
-		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		$closest_distance->{$feat->{SAMPLE}} = 0;
+		#See if there already exists a feature for this sample at this
+		#distance
+		if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+		   $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} == 0)
+		  {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
+		else
+		  {
+		    delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
+		      if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+			 exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
+		    $closest_feat->{$feat->{SAMPLE}} = copyFeature($feat);
+		    $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+		    $closest_distance->{$feat->{SAMPLE}} = 0;
+		  }
 		debug("Feature Overlaps.");
 	      }
 
@@ -2580,10 +2613,15 @@ sub getClosestFeature
 	       $distance < $closest_distance->{$feat->{SAMPLE}})
 	      {
 		$closest_distance->{$feat->{SAMPLE}} = $distance;
-		$closest_feat->{$feat->{SAMPLE}}     = $feat;
+		$closest_feat->{$feat->{SAMPLE}}     = copyFeature($feat);
 		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
+		delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
+		  if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+		     exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
 		debug("Feature is Closer.");
 	      }
+	    elsif($distance == $closest_distance->{$feat->{SAMPLE}})
+	      {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
 	  }
 
 	if(exists($feat->{CHR2}) && defined($feat->{CHR2}) &&
@@ -2596,9 +2634,20 @@ sub getClosestFeature
 	       #The start1 and stop1 encompass the feature
 	       ($start1 <= $feat->{START2} && $stop1 >= $feat->{STOP2}))
 	      {
-		$closest_feat->{$feat->{SAMPLE}} = $feat;
-		$closest_distance->{$feat->{SAMPLE}} = 0;
-		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+		#See if there already exists a feature for this sample at this
+		#distance
+		if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+		   $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} == 0)
+		  {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
+		else
+		  {
+		    delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
+		      if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+			 exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
+		    $closest_feat->{$feat->{SAMPLE}} = copyFeature($feat);
+		    $closest_distance->{$feat->{SAMPLE}} = 0;
+		    $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+		  }
 	      }
 
 	    my $distance = (sort {$a <=> $b}
@@ -2611,9 +2660,14 @@ sub getClosestFeature
 	       $distance < $closest_distance->{$feat->{SAMPLE}})
 	      {
 		$closest_distance->{$feat->{SAMPLE}} = $distance;
-		$closest_feat->{$feat->{SAMPLE}}     = $feat;
+		$closest_feat->{$feat->{SAMPLE}}     = copyFeature($feat);
 		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
+		delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
+		  if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+		     exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
 	      }
+	    elsif($distance == $closest_distance->{$feat->{SAMPLE}})
+	      {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
 	  }
       }
 
@@ -2655,6 +2709,13 @@ sub getClosestFeature
 				   $stop2 >= $_->{STOP2})))}
 			  @$features)
 	  {
+	    #Strip any distances which have previously been added by the above
+	    #loop or previous calls
+	    if(exists($feat->{DISTANCE}))
+	      {delete($feat->{DISTANCE})}
+	    if(exists($feat->{OTHERS}))
+	      {delete($feat->{OTHERS})}
+
 	    if($feat->{CHR1} eq $chr2)
 	      {
 		if(#The start2 is inside the feature
@@ -2664,9 +2725,22 @@ sub getClosestFeature
 		   #The start2 and stop2 encompass the feature
 		   ($start2 <= $feat->{START1} && $stop2 >= $feat->{STOP1}))
 		  {
-		    $closest_feat2->{$feat->{SAMPLE}} = $feat;
-		    $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		    $closest_distance->{$feat->{SAMPLE}} = 0;
+		    #See if there already exists a feature for this sample at
+		    #this distance
+		    if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
+		       $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} == 0)
+		      {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}
+			 ->{$feat->{ID}}=1}
+		    else
+		      {
+			delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
+			  if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
+			     exists($closest_feat2->{$feat->{SAMPLE}}
+				    ->{OTHERS}));
+			$closest_feat2->{$feat->{SAMPLE}} = copyFeature($feat);
+			$closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+			$closest_distance->{$feat->{SAMPLE}} = 0;
+		      }
 		  }
 
 		my $distance = (sort {$a <=> $b}
@@ -2678,10 +2752,17 @@ sub getClosestFeature
 		if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
 		   $distance < $closest_distance->{$feat->{SAMPLE}})
 		  {
-		    $closest_distance->{$feat->{SAMPLE}} = $distance;
-		    $closest_feat2->{$feat->{SAMPLE}}     = $feat;
+		    $closest_distance->{$feat->{SAMPLE}}          = $distance;
+		    $closest_feat2->{$feat->{SAMPLE}}             =
+		      copyFeature($feat);
 		    $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
+		    delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
+		      if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
+			 exists($closest_feat2->{$feat->{SAMPLE}}->{OTHERS}));
 		  }
+		elsif($distance == $closest_distance->{$feat->{SAMPLE}})
+		  {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}
+		     = 1}
 	      }
 
 	    if(exists($feat->{CHR2}) && defined($feat->{CHR2}) &&
@@ -2694,9 +2775,22 @@ sub getClosestFeature
 		   #The start2 and stop2 encompass the feature
 		   ($start2 <= $feat->{START2} && $stop2 >= $feat->{STOP2}))
 		  {
-		    $closest_feat2->{$feat->{SAMPLE}} = $feat;
-		    $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		    $closest_distance->{$feat->{SAMPLE}} = 0;
+		    #See if there already exists a feature for this sample at
+		    #this distance
+		    if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
+		       $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} == 0)
+		      {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}
+			 ->{$feat->{ID}} = 1}
+		    else
+		      {
+			delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
+			  if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
+			     exists($closest_feat2->{$feat->{SAMPLE}}
+				    ->{OTHERS}));
+			$closest_feat2->{$feat->{SAMPLE}} = copyFeature($feat);
+			$closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+			$closest_distance->{$feat->{SAMPLE}} = 0;
+		      }
 		  }
 
 		my $distance = (sort {$a <=> $b}
@@ -2710,9 +2804,15 @@ sub getClosestFeature
 		   $distance < $closest_distance->{$feat->{SAMPLE}})
 		  {
 		    $closest_distance->{$feat->{SAMPLE}} = $distance;
-		    $closest_feat2->{$feat->{SAMPLE}}    = $feat;
+		    $closest_feat2->{$feat->{SAMPLE}}    = copyFeature($feat);
 		    $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
+		    delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
+		      if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
+			 exists($closest_feat2->{$feat->{SAMPLE}}->{OTHERS}));
 		  }
+		elsif($distance == $closest_distance->{$feat->{SAMPLE}})
+		  {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}
+		     = 1}
 	      }
 	  }
       }
@@ -2721,4 +2821,23 @@ sub getClosestFeature
 #	    "$stop1]!") if(scalar(keys(%$closest_feat)) == 0);
 
     return($closest_feat,$closest_feat2);
+  }
+
+sub copyFeature
+  {
+    my $source = $_[0];
+    my $copy   = {};
+
+    foreach my $key (keys(%$source))
+      {
+	my $type = ref(\$source->{$key});
+	if($type ne 'SCALAR')
+	  {
+	    error("A feature hash may only contain scalar values, but ",
+		  "instead, the key [$key] contains a [$type].");
+	    return({});
+	  }
+	$copy->{$key} = $source->{$key};
+      }
+    return($copy);
   }
