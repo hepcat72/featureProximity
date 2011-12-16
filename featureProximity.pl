@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '1.3';
+my $software_version_number = '1.4';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -158,7 +158,8 @@ if(!isStandardInputFromTerminal())
     #Don't need to use a 'stub' if the redirected input file is a feature file
     if(scalar(grep {$_ eq '-'} map {@$_} @feature_files) == 0)
       {
-	debug("Feature files: [",join(',',map {@$_} @feature_files),"].");
+	debug("Feature files: [",join(',',map {@$_} @feature_files),"].")
+	  if($DEBUG > 1);
 
 	#If there's only one input file detected, use that input file as a stub
 	#for the output file name construction
@@ -411,8 +412,8 @@ verbose('Run conditions: ',getCommand(1));
 
 if($data_chr1_col !~ /^\d+$/)
   {
-    error("Invalid chromosome1 column number (-c): [$data_chr1_col] for input ",
-	  "data file (-i).");
+    error("Invalid chromosome1 column number (-c): [$data_chr1_col] for ",
+	  "input data file (-i).");
     quit(1);
   }
 
@@ -690,7 +691,7 @@ foreach my $input_file_set (@input_files)
 		next if(/^\s*#/ || /^\s*$/);
 
 		chomp;
-		my @cols = split(/\t/,$_);
+		my @cols = split(/ *\t */,$_);
 
 		#Skip rows that don't have enough columns
 		next if(scalar(grep {defined($_) && $#cols < $_}
@@ -714,21 +715,40 @@ foreach my $input_file_set (@input_files)
 		#If both coordinates are in the same column, split on non-nums
 		if($feat_start1_ind == $feat_end1_ind && $feat_start1 =~ /\D/)
 		  {
-		    if($feat_start1 =~ /^\d+\D{1,2}\d+/)
-		      {
-			($feat_start1,$feat_end1) =
-			  grep {/\d/} split(/\D+/,$feat_start1);
-		      }
-		    elsif($feat_start1 =~ /(\d+)(?:\.\.|[\-:;,\.\/|&+_])(\d+)/)
+		    if($feat_start1 =~ /(\d{4,}),(\d+)/)
 		      {
 			$feat_start1 = $1;
 			$feat_end1   = $2;
 		      }
-		    elsif($feat_start1 =~ /(\d+)/)
+		    elsif($feat_start1 =~ /(\d+),(\d{4,})/)
+		      {
+			$feat_start1 = $1;
+			$feat_end1   = $2;
+		      }
+		    elsif($feat_start1 =~ /^[\d,]+[^\d,]{1,2}[\d,]+$/)
+		      {
+			($feat_start1,$feat_end1) =
+			  grep {/\d/} split(/[^\d,]+/,$feat_start1);
+		      }
+		    elsif($feat_start1 =~
+			  /([\d,]+)(?:\.\.|[\-:;\.\/|&+_])([\d,]+)/)
+		      {
+			$feat_start1 = $1;
+			$feat_end1   = $2;
+		      }
+		    elsif($feat_start1 =~ /(\d{4,})/)
 		      {
 			$feat_start1 = $feat_end1 = $1;
-			warning("Using a single coordinate for start1 and ",
-				"end1 of feature [$feat_id] on line ",
+			warning("Using a single coordinate: [$1] for start1 ",
+				"and end1 of feature [$feat_id] on line ",
+				"[$line_num] of feature file ",
+				"[$current_feature_file].");
+		      }
+		    elsif($feat_start1 =~ /^\s*([\d,]+)\s*$/)
+		      {
+			$feat_start1 = $feat_end1 = $1;
+			warning("Using a single coordinate: [$1] for start1 ",
+				"and end1 of feature [$feat_id] on line ",
 				"[$line_num] of feature file ",
 				"[$current_feature_file].");
 		      }
@@ -741,6 +761,8 @@ foreach my $input_file_set (@input_files)
 		      }
 		  }
 
+		#Allow the coordinate to have commas
+		$feat_start1 =~ s/[,\s]//g;
 		if($feat_start1 !~ /^\d+$/)
 		  {
 		    error("Invalid feature start1 coordinate: [$feat_start1] ",
@@ -751,6 +773,8 @@ foreach my $input_file_set (@input_files)
 		    next;
 		  }
 
+		#Allow the coordinate to have commas
+		$feat_end1 =~ s/[,\s]//g;
 		if($feat_end1 !~ /^\d+$/)
 		  {
 		    error("Invalid feature end1 coordinate: [$feat_end1] ",
@@ -798,24 +822,42 @@ foreach my $input_file_set (@input_files)
 		    if($feat_start2_ind == $feat_end2_ind &&
 		       $feat_start2 =~ /\D/)
 		      {
-			if($feat_start2 =~ /^\d+\D{1,2}\d+/)
-			  {
-			    ($feat_start2,$feat_end2) =
-			      grep {/\d/} split(/\D+/,$feat_start2);
-			  }
-			elsif($feat_start2 =~
-			      /(\d+)(?:\.\.|[\-:;,\.\/|&+_])(\d+)/)
+			if($feat_start2 =~ /(\d{4,}),(\d+)/)
 			  {
 			    $feat_start2 = $1;
 			    $feat_end2   = $2;
 			  }
-			elsif($feat_start2 =~ /(\d+)/)
+			elsif($feat_start2 =~ /(\d+),(\d{4,})/)
+			  {
+			    $feat_start2 = $1;
+			    $feat_end2   = $2;
+			  }
+			elsif($feat_start2 =~ /^[\d,]+[^\d,]{1,2}[\d,]+$/)
+			  {
+			    ($feat_start2,$feat_end2) =
+			      grep {/\d/} split(/[^\d,]+/,$feat_start2);
+			  }
+			elsif($feat_start2 =~
+			      /([\d,]+)(?:\.\.|[\-:;\.\/|&+_])([\d,]+)/)
+			  {
+			    $feat_start2 = $1;
+			    $feat_end2   = $2;
+			  }
+			elsif($feat_start2 =~ /(\d{4,})/)
 			  {
 			    $feat_start2 = $feat_end2 = $1;
-			    warning("Using a single coordinate for start2 ",
-				    "and end2 of feature [$feat_id] on line ",
-				    "[$line_num] of feature ",
-				    "file [$current_feature_file].");
+			    warning("Using a single coordinate: [$1] for ",
+				    "start2 and end2 of feature [$feat_id] ",
+				    "on line [$line_num] of feature file ",
+				    "[$current_feature_file].");
+			  }
+			elsif($feat_start2 =~ /^\s*([\d,]+)\s*$/)
+			  {
+			    $feat_start2 = $feat_end2 = $1;
+			    warning("Using a single coordinate: [$1] for ",
+				    "start2 and end2 of feature [$feat_id] ",
+				    "on line [$line_num] of feature file ",
+				    "[$current_feature_file].");
 			  }
 			else
 			  {
@@ -827,6 +869,8 @@ foreach my $input_file_set (@input_files)
 			  }
 		      }
 
+		    #Allow the coordinate to have commas
+		    $feat_start2 =~ s/[,\s]//g;
 		    if($feat_start2 !~ /^\d+$/)
 		      {
 			error("Invalid feature start2 coordinate: ",
@@ -837,6 +881,8 @@ foreach my $input_file_set (@input_files)
 			next;
 		      }
 
+		    #Allow the coordinate to have commas
+		    $feat_end2 =~ s/[,\s]//g;
 		    if($feat_end2 !~ /^\d+$/)
 		      {
 			error("Invalid feature end2 coordinate: [$feat_end2] ",
@@ -872,7 +918,7 @@ foreach my $input_file_set (@input_files)
 		      "$feat_start1, STOP1 => $feat_end1",
 		      (defined($feat_chr2) ?
 		       ", CHR2 => $feat_chr2, START2 => $feat_start2, STOP2 " .
-		       "=> $feat_end2\n" : ''));
+		       "=> $feat_end2\n" : '')) if($DEBUG > 1);
 
 		push(@{$feature_hash->{$current_feature_file}},
 		     {ID      => $feat_id,
@@ -1077,7 +1123,7 @@ foreach my $input_file_set (@input_files)
 	    next if(/^\s*#/ || /^\s*$/);
 
 	    chomp;
-	    my @cols = split(/\t/,$_);
+	    my @cols = split(/ *\t */,$_);
 
 	    #Skip rows that don't have enough columns
 	    next if(scalar(grep {defined($_) && $#cols < $_}
@@ -1086,6 +1132,9 @@ foreach my $input_file_set (@input_files)
 			    $data_start2_ind,$data_end2_ind)));
 
 	    my $data_id = join($id_delimiter,@cols[@data_id_inds]);
+
+	    debug("The data ID: [$data_id] looks weird on line: [$_]")
+	      if($data_id =~ /^,/);
 
 	    my $data_comment = (scalar(@data_comment_inds) ?
 				join($comment_delimiter,
@@ -1100,21 +1149,38 @@ foreach my $input_file_set (@input_files)
 #		($data_start1,$data_end1) = grep {/\d/} split(/\D+/,
 #							      $data_start1);
 
-		if($data_start1 =~ /^\d+\D{1,2}\d+/)
-		  {
-		    ($data_start1,$data_end1) =
-		      grep {/\d/} split(/\D+/,$data_start1);
-		  }
-		elsif($data_start1 =~
-		      /(\d+)(?:\.\.|[\-:;,\.\/|&+_])(\d+)/)
+		if($data_start1 =~ /(\d{4,}),(\d+)/)
 		  {
 		    $data_start1 = $1;
 		    $data_end1   = $2;
 		  }
-		elsif($data_start1 =~ /(\d+)/)
+		elsif($data_start1 =~ /(\d+),(\d{4,})/)
+		  {
+		    $data_start1 = $1;
+		    $data_end1   = $2;
+		  }
+		elsif($data_start1 =~ /^[\d,]+[^\d,]{1,2}[\d,]+$/)
+		  {
+		    ($data_start1,$data_end1) =
+		      grep {/\d/} split(/[^\d,]+/,$data_start1);
+		  }
+		elsif($data_start1 =~
+		      /([\d,]+)(?:\.\.|[\-:;\.\/|&+_])([\d,]+)/)
+		  {
+		    $data_start1 = $1;
+		    $data_end1   = $2;
+		  }
+		elsif($data_start1 =~ /(\d{4,})/)
 		  {
 		    $data_start1 = $data_end1 = $1;
-		    warning("Using a single coordinate for start1 ",
+		    warning("Using a single coordinate: [$1] for start1 ",
+			    "and end1 of input data ID [$data_id] on line ",
+			    "[$line_num] of input data file [$input_file].");
+		  }
+		elsif($data_start1 =~ /^\s*([\d,]+)\s*$/)
+		  {
+		    $data_start1 = $data_end1 = $1;
+		    warning("Using a single coordinate: [$1] for start1 ",
 			    "and end1 of input data ID [$data_id] on line ",
 			    "[$line_num] of input data file [$input_file].");
 		  }
@@ -1126,6 +1192,9 @@ foreach my $input_file_set (@input_files)
 		    next;
 		  }
 	      }
+
+	    #Allow the coordinate to have commas
+	    $data_start1 =~ s/[,\s]//g;
 	    if($data_start1 !~ /^\d+$/)
 	      {
 		error("Invalid start1 coordinate: [$data_start1] ",
@@ -1135,6 +1204,8 @@ foreach my $input_file_set (@input_files)
 		next;
 	      }
 
+	    #Allow the coordinate to have commas
+	    $data_end1 =~ s/[,\s]//g;
 	    if($data_end1 !~ /^\d+$/)
 	      {
 		error("Invalid end1 coordinate: [$data_end1] ",
@@ -1186,33 +1257,54 @@ foreach my $input_file_set (@input_files)
 		#If both coordinates are in the same column, split on non-nums
 		if($data_start2_ind == $data_end2_ind && $data_start2 =~ /\D/)
 		  {
-		    if($data_start2 =~ /^\d+\D{1,2}\d+/)
-		      {
-			($data_start2,$data_end2) =
-			  grep {/\d/} split(/\D+/,$data_start2);
-		      }
-		    elsif($data_start2 =~
-			  /(\d+)(?:\.\.|[\-:;,\.\/|&+_])(\d+)/)
+		    if($data_start2 =~ /(\d{4,}),(\d+)/)
 		      {
 			$data_start2 = $1;
 			$data_end2   = $2;
 		      }
-		    elsif($data_start2 =~ /(\d+)/)
+		    elsif($data_start2 =~ /(\d+),(\d{4,})/)
+		      {
+			$data_start2 = $1;
+			$data_end2   = $2;
+		      }
+		    elsif($data_start2 =~ /^[\d,]+[^\d,]{1,2}[\d,]+$/)
+		      {
+			($data_start2,$data_end2) =
+			  grep {/\d/} split(/[^\d,]+/,$data_start2);
+		      }
+		    elsif($data_start2 =~
+			  /([\d,]+)(?:\.\.|[\-:;\.\/|&+_])([\d,]+)/)
+		      {
+			$data_start2 = $1;
+			$data_end2   = $2;
+		      }
+		    elsif($data_start2 =~ /(\d{4,})/)
 		      {
 			$data_start2 = $data_end2 = $1;
-			warning("Using a single coordinate for start2 and ",
-				"end2 of input data ID [$data_id] on line ",
-				"[$line_num] of input data file ",
+			warning("Using a single coordinate: [$1] for start2 ",
+				"and end2 of input data ID [$data_id] on ",
+				"line [$line_num] of input data file ",
+				"[$input_file].");
+		      }
+		    elsif($data_start2 =~ /^\s*([\d,]+)\s*$/)
+		      {
+			$data_start2 = $data_end2 = $1;
+			warning("Using a single coordinate: [$1] for start2 ",
+				"and end2 of input data ID [$data_id] on ",
+				"line [$line_num] of input data file ",
 				"[$input_file].");
 		      }
 		    else
 		      {
-			error("Unable to parse start2 and end2 of input ",
-			      "data ID [$data_id] on line [$line_num] of ",
-			      "input data file [$input_file].  Skipping.");
+			error("Unable to parse start2 and end2 of ",
+			      "input data ID [$data_id] on line [$line_num] ",
+			      "of input data file [$input_file].  Skipping.");
 			next;
 		      }
 		  }
+
+		#Allow the coordinate to have commas
+		$data_start2 =~ s/[,\s]//g;
 		if($data_start2 !~ /^\d+$/)
 		  {
 		    error("Invalid start2 coordinate: [$data_start2] ",
@@ -1222,6 +1314,8 @@ foreach my $input_file_set (@input_files)
 		    next;
 		  }
 
+		#Allow the coordinate to have commas
+		$data_end2 =~ s/[,\s]//g;
 		if($data_end2 !~ /^\d+$/)
 		  {
 		    error("Invalid end2 coordinate: [$data_end2] ",
@@ -1264,7 +1358,8 @@ foreach my $input_file_set (@input_files)
 		  (defined($data_chr2) ?
 		   ", chr2: $data_chr2, start2: $data_start2, end2: $data_end2"
 		   : ''),
-		  "] using search range distance: $search_range");
+		  "] using search range distance: $search_range")
+	      if($DEBUG > 1);
 
 	    #Get the closest feature to each start1/end1 and start2/end2 pair
 	    #There are 2 pairs of coordinates because this is designed to
@@ -1296,7 +1391,7 @@ foreach my $input_file_set (@input_files)
 	    # DISTANCE
 
 	    if(scalar(keys(%$feature1)))
-	      {debug("Found a feature for chr1/start1/stop1")}
+	      {debug("Found a feature for chr1/start1/stop1") if($DEBUG > 1);}
 
 	    my $sum_distances1 = 0;
 	    foreach my $samp (keys(%$feature1))
@@ -1307,7 +1402,8 @@ foreach my $input_file_set (@input_files)
 		foreach my $samp (keys(%{$feature2}))
 		  {
 		    debug("feature2 hash: [$feature2] sample: [$samp] ",
-			  "distance: [$feature2->{$samp}->{DISTANCE}]");
+			  "distance: [$feature2->{$samp}->{DISTANCE}]")
+		      if($DEBUG > 1);;
 		    $sum_distances2 += $feature2->{$samp}->{DISTANCE};
 		  }
 	      }
@@ -2567,7 +2663,8 @@ sub getClosestFeature
 	debug("Inspecting [$chr1 $start1 $stop1] with [$feat->{CHR1} ",
 	      "$feat->{START1} $feat->{STOP1} ",
 	      (exists($feat->{CHR2}) && defined($feat->{CHR2}) ?
-	       "$feat->{CHR2} $feat->{START2} $feat->{STOP2}" : '  '),"].");
+	       "$feat->{CHR2} $feat->{START2} $feat->{STOP2}" : '  '),"].")
+	  if($DEBUG > 1);;
 
 	#Strip any distances which have previously been added by previous calls
 	if(exists($feat->{DISTANCE}))
@@ -2598,7 +2695,7 @@ sub getClosestFeature
 		    $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
 		    $closest_distance->{$feat->{SAMPLE}} = 0;
 		  }
-		debug("Feature Overlaps.");
+		debug("Feature Overlaps.") if($DEBUG > 1);;
 	      }
 
 	    my $distance = (sort {$a <=> $b}
@@ -2607,7 +2704,7 @@ sub getClosestFeature
 			     abs($start1 - $feat->{START1}),
 			     abs($feat->{STOP1} - $stop1)))[0];
 
-	    debug("Feature is $distance away.");
+	    debug("Feature is $distance away.") if($DEBUG > 1);;
 
 	    if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
 	       $distance < $closest_distance->{$feat->{SAMPLE}})
@@ -2618,7 +2715,7 @@ sub getClosestFeature
 		delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
 		  if(exists($closest_feat->{$feat->{SAMPLE}}) &&
 		     exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
-		debug("Feature is Closer.");
+		debug("Feature is Closer.") if($DEBUG > 1);;
 	      }
 	    elsif($distance == $closest_distance->{$feat->{SAMPLE}})
 	      {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
@@ -2674,6 +2771,9 @@ sub getClosestFeature
     my $closest_feat2 = {};
     $closest_distance = {};
 
+    debug("Value of chr1: $chr1 start1: [$start1] chr2: $chr2 start2: ",
+	  "[$start2].");
+
     if(defined($start2) && $start2)
       {
 	foreach my $feat (grep {($_->{CHR1} eq $chr2 &&
@@ -2709,6 +2809,8 @@ sub getClosestFeature
 				   $stop2 >= $_->{STOP2})))}
 			  @$features)
 	  {
+	    debug("Second coordinate inspection.");
+
 	    #Strip any distances which have previously been added by the above
 	    #loop or previous calls
 	    if(exists($feat->{DISTANCE}))
