@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '2.1';
+my $software_version_number = '2.2';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -669,6 +669,7 @@ foreach my $input_file_set (@input_files)
 
 	    my $line_num     = 0;
 	    my $verbose_freq = 100;
+	    my $redund_check = {};
 
 	    #For each line in the current feature file
 	    while(getLine(*FEAT))
@@ -799,6 +800,30 @@ foreach my $input_file_set (@input_files)
 			next;
 		      }
 
+		    #Sometimes features like genes may have redundant entries.
+		    #For example, when you take the genes in the human genome
+		    #and grab the smallest and largest coordinates, many splice
+		    #variants will yield the same "feature".  Here, we check
+		    #for features that are indistinguishable
+		    if(exists($redund_check->{$feat_id}) &&
+		       exists($redund_check->{$feat_id}->{$feat_sample}) &&
+		       exists($redund_check->{$feat_id}->{$feat_sample}
+			      ->{$feat_chr1}) &&
+		       exists($redund_check->{$feat_id}->{$feat_sample}
+			      ->{$feat_chr1}->{$feat_start1}) &&
+		       exists($redund_check->{$feat_id}->{$feat_sample}
+			      ->{$feat_chr1}->{$feat_start1}->{$feat_end1}) &&
+		       exists($redund_check->{$feat_id}->{$feat_sample}
+			      ->{$feat_chr1}->{$feat_start1}->{$feat_end1}
+			      ->{$feat_comment}))
+		      {
+			warning("Skipping redundant feature found in feature ",
+				"file: [$current_feature_file]: [$feat_id,",
+				"$feat_sample,$feat_chr1,$feat_start1,",
+				"$feat_end1,$feat_comment].");
+			next;
+		      }
+
 #		    $feat_chr1 = uc($feat_chr1);
 #		    $feat_chr1 =~ s/chr(omosome)?/chr/i;
 #		    if($feat_chr1 !~ /^chr/)
@@ -830,6 +855,11 @@ foreach my $input_file_set (@input_files)
 			  START1  => $feat_start1,
 			  STOP1   => $feat_end1,
 			  COMMENT => $feat_comment});
+
+		    #Record the feature in the redundancy hash to help
+		    #eliminate duplicates.
+		    $redund_check->{$feat_id}->{$feat_sample}->{$feat_chr1}
+		      ->{$feat_start1}->{$feat_end1}->{$feat_comment} = 1;
 		  }
 
 		$sample_hash->{$current_feature_file}->{$feat_sample} = 1;
