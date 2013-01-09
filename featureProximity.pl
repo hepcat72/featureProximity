@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '2.2';
+my $software_version_number = '2.3';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -683,7 +683,7 @@ foreach my $input_file_set (@input_files)
 		next if(/^\s*#/ || /^\s*$/);
 
 		chomp;
-		my @cols = split(/ *\t */,$_);
+		my @cols = split(/ *\t */,$_,-1);
 
 		#Skip rows that don't have enough columns
 		if(scalar(grep {defined($_) && $#cols < $_}
@@ -1111,7 +1111,7 @@ foreach my $input_file_set (@input_files)
 	    next if(/^\s*#/ || /^\s*$/);
 
 	    chomp;
-	    my @cols = split(/ *\t */,$_);
+	    my @cols = split(/ *\t */,$_,-1);
 
 	    #Skip rows that don't have enough columns
 	    if(scalar(grep {defined($_) && $#cols < $_}
