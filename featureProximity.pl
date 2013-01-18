@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '2.3';
+my $software_version_number = '2.4';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -48,7 +48,7 @@ my @data_comment_cols      = ();
 my $id_delimiter           = '.';
 my $data_comment_delimiter = "\t";
 my $feat_comment_delimiter = "\t";
-my $search_range           = 0;
+my $search_range           = -1;
 
 #These variables (in main) are used by the following subroutines:
 #verbose, error, warning, debug, getCommand, quit, and usage
@@ -65,7 +65,7 @@ my $GetOptHash =
 					   [sglob($_[0])])},     #-i supplied
    'f|feature-file=s'         => sub {push(@feature_files,       #REQ'D unless
 				     [sglob($_[1])])},           #<> supplied
-   'r|search-range=s'         => \$search_range,                 #OPTIONAL [0]
+   'r|search-range=s'         => \$search_range,                 #OPTIONAL [-1]
 
    'c|data-seq-id-col=s'      => sub {push(@data_chr1_cols,      #REQUIRED [0]
 					   map {split(/\s+/,$_)}
@@ -1765,9 +1765,11 @@ end_print
                                    '[...]' (e.g. -i "*.txt *.text").  See
                                    --help for a description of the feature file
                                    format.  See --help for advanced usage.
-     -r|--search-range    OPTIONAL [1000000] The maximum distance of reported
+     -r|--search-range    OPTIONAL [-1] The maximum distance of reported
                                    features.  Features further away will not be
-                                   output.  A value of '0' means no limit.
+                                   output.  A negative value means no limit.  A
+                                   0 value means only report overlapping
+                                   features.
      -d|--data-row-id-col OPTIONAL [0] The column number or numbers (separated
                                    by non-numbers (e.g. commas)) where a unique
                                    ID can be found in the data file (see -i)
@@ -2919,7 +2921,7 @@ sub getClosestFeature
     foreach my $feat (grep {(#The feature is on the same chromosome
 			     $_->{CHR1} eq $chr1 &&
 			     (#There is no limit to the search range
-			      $search_range == 0 ||
+			      $search_range == -1 ||
 			      #start1 is within the search range of the feature
 			      abs($start1-$_->{STOP1})  <= $search_range ||
 			      abs($start1-$_->{START1}) <= $search_range ||
