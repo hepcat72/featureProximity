@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '2.4';
+my $software_version_number = '2.6';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -567,6 +567,12 @@ my @data_start1_inds  = map {$_ - 1} @data_start1_cols;
 my @data_end1_inds    = map {$_ - 1} @data_end1_cols;
 my @data_comment_inds = map {$_ - 1} @data_comment_cols;
 
+#Keep track of the largest feature (to be added to the search range in order to
+#create a hash of feature regions to speed up the search).  The script will
+#jump to the regions nearest the input coordinates.
+my $largest_range = 0;
+my $region_size   = 1;
+
 my $first_loop = 1;
 
 #For each input file set
@@ -856,6 +862,11 @@ foreach my $input_file_set (@input_files)
 			  STOP1   => $feat_end1,
 			  COMMENT => $feat_comment});
 
+		    if($largest_range < (abs($feat_end1-$feat_start1) + 1 +
+					 (2 * $search_range)))
+		      {$largest_range = abs($feat_end1-$feat_start1) + 1 +
+			 (2 * $search_range)}
+
 		    #Record the feature in the redundancy hash to help
 		    #eliminate duplicates.
 		    $redund_check->{$feat_id}->{$feat_sample}->{$feat_chr1}
@@ -877,7 +888,22 @@ foreach my $input_file_set (@input_files)
 		    ' Seconds].');
 	  }
 
-	$current_features    = $feature_hash->{$current_feature_file};
+	#Determine the order of magnitude larger than the largest range (add 0
+	#to turn this into an integer)
+	my $magnitude = (1 . ('0' x length($largest_range))) + 0;
+
+	if($search_range < 0)
+	  {$magnitude = 0}
+
+	#Now segment the hash based on this magnitude
+	$feature_hash->{$current_feature_file} =
+	  segmentHash($magnitude,
+		      $feature_hash->{$current_feature_file});
+
+	#Commented out the following line to create the current features on the
+	#fly with a narrower set of features based on a hash lookup (like a
+	#histogram).
+	#$current_features    = $feature_hash->{$current_feature_file};
 	$current_sample_hash = $sample_hash->{$current_feature_file};
 
 	##
@@ -1264,6 +1290,64 @@ foreach my $input_file_set (@input_files)
 		      "$data_chr1, start1: $data_start1, end1: $data_end1] ",
 		      "using search range distance: [$search_range].")
 		  if($DEBUG > 1);
+
+		#Base region membership on start coordinate
+		my $mycoord = $data_start1;
+		#If the coordinates are larger than the feature hash
+		#segmentation, resegment the hash
+		my $coord_size = abs($data_end1 - $data_start1) + 1 +
+		  ($search_range >= 0 ? 2 * $search_range : 0);
+		if($search_range >= 0 && $magnitude < $coord_size)
+		  {
+		    #Determine the new magnitude
+		    my $magnitude = (1 . ('0' x length($coord_size))) + 0;
+		    #Resegment the hash
+		    $feature_hash->{$current_feature_file} =
+		      segmentHash($magnitude,
+				  [map {values(%$_)}
+				   values(%{$feature_hash
+					      ->{$current_feature_file}})]);
+		  }
+
+		#Determine the current set of features to search
+		$current_features = [];
+
+		#Set the region to search
+		my $region = ($magnitude ?
+			      (int($mycoord / $magnitude) * $magnitude) : 0);
+
+		#First add the features in the region to the left
+		#(Note: if it's < 0, it won't exist in the hash)
+		$region -= $magnitude;
+		if($magnitude &&
+		   exists($feature_hash->{$current_feature_file}
+			  ->{$data_chr1}) &&
+		   exists($feature_hash->{$current_feature_file}
+			  ->{$data_chr1}->{$region}))
+		  {push(@$current_features,
+			@{$feature_hash->{$current_feature_file}
+			    ->{$data_chr1}->{$region}})}
+
+		#Add the features in the region containing the base coordinate
+		$region += $magnitude;
+		if(exists($feature_hash->{$current_feature_file}
+			  ->{$data_chr1}) &&
+		   exists($feature_hash->{$current_feature_file}
+			  ->{$data_chr1}->{$region}))
+		  {push(@$current_features,
+			@{$feature_hash->{$current_feature_file}
+			    ->{$data_chr1}->{$region}})}
+
+		#Add the features from the region to the right
+		$region += $magnitude;
+		if($magnitude &&
+		   exists($feature_hash->{$current_feature_file}
+			  ->{$data_chr1}) &&
+		   exists($feature_hash->{$current_feature_file}
+			  ->{$data_chr1}->{$region}))
+		  {push(@$current_features,
+			@{$feature_hash->{$current_feature_file}
+			    ->{$data_chr1}->{$region}})}
 
 		#Get the closest feature to start1/end1
 		my $feature1 = getClosestFeature($data_chr1,
@@ -3111,4 +3195,27 @@ sub copyFeature
 	$copy->{$key} = $source->{$key};
       }
     return($copy);
+  }
+
+sub segmentHash
+  {
+    my $magnitude = $_[0];
+    my $feat_hash = $_[1]; #Actually an array of hashes
+
+    if($magnitude !~ /^[01]0*$/)
+      {
+	error("Invalid order of magnitude passed in: [$magnitude].");
+	quit(1);
+      }
+
+    my $new_feat_hash = {};
+
+    foreach my $feat (@$feat_hash)
+      {
+	my $region  = ($magnitude > 0 ? int($feat->{START1} / $magnitude) *
+		       $magnitude : 0);
+	push(@{$new_feat_hash->{$feat->{CHR1}}->{$region}},$feat);
+      }
+
+    return($new_feat_hash);
   }
