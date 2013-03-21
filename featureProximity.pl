@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '2.6';
+my $software_version_number = '3.0';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -20,35 +20,36 @@ use File::Glob ':glob';
 
 #Declare & initialize variables.  Provide default values here.
 my($outfile_suffix); #Not defined so input can be overwritten
-my @input_files            = ();
-my @feature_files          = ();
-my @outdirs                = ();
-my $current_output_file    = '';
-my $help                   = 0;
-my $version                = 0;
-my $overwrite              = 0;
-my $noheader               = 0;
-my $feat_sample_col        = 0; #1
-my @feat_chr1_cols         = (); #2
-my @feat_start1_cols       = (); #19
-my @feat_end1_cols         = (); #19
-#my $feat_chr2_col       = 0; #4
-#my $feat_start2_col     = 0; #20
-#my $feat_end2_col       = 0; #20
-my @feat_id_cols           = (); #2,3,4,5,6
-my @feat_comment_cols      = ();
-my @data_chr1_cols         = (); #1
-my @data_start1_cols       = (); #2
-my @data_end1_cols         = (); #3
-#my @data_chr2_col       = 0;
-#my @data_start2_col     = 0;
-#my @data_end2_col       = 0;
-my @data_id_cols           = (); #4
-my @data_comment_cols      = ();
-my $id_delimiter           = '.';
-my $data_comment_delimiter = "\t";
-my $feat_comment_delimiter = "\t";
-my $search_range           = -1;
+my @outdirs             = ();
+my $current_output_file = '';
+
+my @input_files         = ();
+my @feature_files       = ();
+
+my $help                = 0;
+my $version             = 0;
+my $overwrite           = 0;
+my $noheader            = 0;
+
+my $feat_sample_col     = 0;
+my @feat_chr1_cols      = ();
+my @feat_start1_cols    = ();
+my @feat_end1_cols      = ();
+my @feat_out_cols       = ();
+
+my @data_chr1_cols      = ();
+my @data_start1_cols    = ();
+my @data_end1_cols      = ();
+my @data_out_cols       = ();
+
+my @data_strand_cols    = ();
+my @feat_strand_cols    = ();
+my $search_upstream     = 0;
+my $search_downstream   = 0;
+my $search_overlap      = 0;
+my @feat_orientations   = ();
+
+my $search_range        = -1;
 
 #These variables (in main) are used by the following subroutines:
 #verbose, error, warning, debug, getCommand, quit, and usage
@@ -59,65 +60,68 @@ my $DEBUG         = 0;
 my $ignore_errors = 0;
 
 my $GetOptHash =
-  {'i|data-file|input-file=s' => sub {push(@input_files,         #REQ'D unless
-					   [sglob($_[1])])},     #<> supplied
-   '<>'                       => sub {push(@input_files,         #REQ'D unless
-					   [sglob($_[0])])},     #-i supplied
-   'f|feature-file=s'         => sub {push(@feature_files,       #REQ'D unless
-				     [sglob($_[1])])},           #<> supplied
-   'r|search-range=s'         => \$search_range,                 #OPTIONAL [-1]
+  {'i|data-file|input-file=s' => sub {push(@input_files,    #REQ'D unless
+					   [sglob($_[1])])},#<> supplied
+   '<>'                  => sub {push(@input_files,         #REQ'D unless
+				      [sglob($_[0])])},     #-i supplied
+   'f|feature-file=s'    => sub {push(@feature_files,       #REQ'D unless
+				      [sglob($_[1])])},           #<> supplied
+   'r|search-range=s'    => \$search_range,                 #OPTIONAL [-1]
 
-   'c|data-seq-id-col=s'      => sub {push(@data_chr1_cols,      #REQUIRED [0]
-					   map {split(/\s+/,$_)}
-					   sglob($_[1]))},
-   'a|feat-seq-id-col=s'      => sub {push(@feat_chr1_cols,      #REQUIRED [0]
-					   map {split(/\s+/,$_)}
-					   sglob($_[1]))},
-   'b|data-start-col=s'       => sub {push(@data_start1_cols,    #REQUIRED [0]
-					   map {split(/\D+/,$_)}
-					   sglob($_[1]))},
-   'j|feat-start-col=s'       => sub {push(@feat_start1_cols,    #REQUIRED [0]
-					   map {split(/\D+/,$_)}
-					   sglob($_[1]))},
-   'e|data-stop-col=s'        => sub {push(@data_end1_cols,      #REQUIRED [0]
-					   map {split(/\D+/,$_)}
-					   sglob($_[1]))},
-   'k|feat-stop-col=s'        => sub {push(@feat_end1_cols,      #REQUIRED [0]
-					   map {split(/\D+/,$_)}
-					   sglob($_[1]))},
+   'c|data-seq-id-col=s' => sub {push(@data_chr1_cols,      #REQUIRED [0]
+				      map {split(/\s+/,$_)}
+				      sglob($_[1]))},
+   'a|feat-seq-id-col=s' => sub {push(@feat_chr1_cols,      #REQUIRED [0]
+				      map {split(/\s+/,$_)}
+				      sglob($_[1]))},
 
-#   'h|data-seq-id2-col=s'=> \$data_chr2_col,           #OPTIONAL [0]
-#   'l|feat-seq-id2-col=s'=> \$feat_chr2_col,           #OPTIONAL [0]
-#   'g|data-start2-col=s' => \$data_start2_col,         #OPTIONAL [0]
-#   'p|feat-start2-col=s' => \$feat_start2_col,         #OPTIONAL [0]
-#   'n|data-stop2-col=s'  => \$data_end2_col,           #OPTIONAL [0]
-#   't|feat-stop2-col=s'  => \$feat_end2_col,           #OPTIONAL [0]
+   'b|data-start-col=s'  => sub {push(@data_start1_cols,    #REQUIRED [0]
+				      map {split(/\D+/,$_)}
+				      sglob($_[1]))},
+   'j|feat-start-col=s'  => sub {push(@feat_start1_cols,    #REQUIRED [0]
+				      map {split(/\D+/,$_)}
+				      sglob($_[1]))},
 
-   'd|data-row-id-col=s' => sub {push(@data_id_cols,   #OPTIONAL [0]
-				     map {split(/\D+/,$_)} sglob($_[1]))},
-   'u|feat-row-id-col=s' => sub {push(@feat_id_cols,   #OPTIONAL [0]
-				     map {split(/\D+/,$_)} sglob($_[1]))},
-   's|feat-sample-col=s' => \$feat_sample_col,         #OPTIONAL [0]
-   'm|data-comment-col=s'=> sub {push(@data_comment_cols, #OPTIONAL [0]
+   'e|data-stop-col=s'   => sub {push(@data_end1_cols,      #REQUIRED [0]
+				      map {split(/\D+/,$_)}
+				      sglob($_[1]))},
+   'k|feat-stop-col=s'   => sub {push(@feat_end1_cols,      #REQUIRED [0]
+				      map {split(/\D+/,$_)}
+				      sglob($_[1]))},
+
+   's|feat-sample-col=s' => \$feat_sample_col,              #OPTIONAL [0]
+
+   'm|data-out-cols=s'   => sub {push(@data_out_cols,       #OPTIONAL [nothing]
+				      grep {$_}
+				      map {split(/\D+/,$_)}
+				      sglob($_[1]))},
+   'w|feat-out-cols=s'   => sub {push(@feat_out_cols,       #OPTIONAL [nothing]
 				      grep {$_}
 				      map {split(/\D+/,$_)} sglob($_[1]))},
-   'w|feat-comment-col=s'=> sub {push(@feat_comment_cols, #OPTIONAL [0]
-				      grep {$_}
-				      map {split(/\D+/,$_)} sglob($_[1]))},
-   'id-delimiter=s'      => \$id_delimiter,             #OPTIONAL [.]
-   'data-comment-delim=s'=> \$data_comment_delimiter,   #OPTIONAL [tab]
-   'feat-comment-delim=s'=> \$feat_comment_delimiter,   #OPTIONAL [tab]
-   'o|outfile-suffix=s'  => \$outfile_suffix,           #OPTIONAL [undef]
-   'outdir=s'            => sub {push(@outdirs,         #OPTIONAL
+   'p|data-strand-col=s' => sub {push(@data_strand_cols,    #OPTIONAL [0]
+				      map {split(/\D+/,$_)} #  REQ if u,d,v, or
+				      sglob($_[1]))},       #  t supplied
+   'n|feat-strand-col=s' => sub {push(@feat_strand_cols,    #OPTIONAL [0]
+				      map {split(/\D+/,$_)} #  REQ if u,d,v, or
+				      sglob($_[1]))},       #  t supplied
+   'u|search-upstream'   => \$search_upstream,              #OPTIONAL [Off]
+   'd|search-downstream' => \$search_downstream,            #OPTIONAL [Off]
+   'v|search-overlap'    => \$search_overlap,               #OPTIONAL [Off]
+   't|feat-orientation=s'=> sub {push(@feat_orientations,   #OPTIONAL [any]
+                                      map {split(/\W+/,$_)} #any,away,toward,
+                                      sglob($_[1]))},       #same,opposite,+,-
+                                                            #plus,minus,both
+   'o|outfile-suffix=s'  => \$outfile_suffix,               #OPTIONAL [undef]
+   'outdir=s'            => sub {push(@outdirs,             #OPTIONAL
 				      [sglob($_[1])])},
-   'force|overwrite'     => \$overwrite,                #OPTIONAL [Off]
-   'ignore'              => \$ignore_errors,            #OPTIONAL [Off]
-   'verbose:+'           => \$verbose,                  #OPTIONAL [Off]
-   'quiet'               => \$quiet,                    #OPTIONAL [Off]
-   'debug:+'             => \$DEBUG,                    #OPTIONAL [Off]
-   'help'                => \$help,                     #OPTIONAL [Off]
-   'version'             => \$version,                  #OPTIONAL [Off]
-   'noheader|no-header'  => \$noheader,                 #OPTIONAL [Off]
+   'force|overwrite'     => \$overwrite,                    #OPTIONAL [Off]
+   'ignore'              => \$ignore_errors,                #OPTIONAL [Off]
+   'verbose:+'           => \$verbose,                      #OPTIONAL [Off]
+   'quiet'               => \$quiet,                        #OPTIONAL [Off]
+   'debug:+'             => \$DEBUG,                        #OPTIONAL [Off]
+   'help'                => \$help,                         #OPTIONAL [Off]
+   'version'             => \$version,                      #OPTIONAL [Off]
+   'noheader|no-header'  => \$noheader,                     #OPTIONAL [Off]
   };
 
 #If there are no arguments and no files directed or piped in
@@ -489,43 +493,18 @@ if((scalar(@data_chr1_cols) != scalar(@data_start1_cols)) ||
     quit(7);
   }
 
-
-
-
-#if(scalar(@data_id_cols) == 0)
-#  {push(@data_id_cols,4)}
-#els
-if(scalar(grep {$_ !~ /^\d+$/} @data_id_cols))
+if(scalar(grep {$_ !~ /^\d+$/} @data_out_cols))
   {
-    error("Invalid ID column number(s) (-d): [",
-	  join(',',grep {$_ !~ /^\d+$/} @data_id_cols),
-	  "] for input data file (-i).");
-    quit(14);
-  }
-
-#if(scalar(@feat_id_cols) == 0)
-#  {push(@feat_id_cols,(2,3,4,5,6))}
-#els
-if(scalar(@feat_id_cols) && scalar(grep {$_ !~ /^\d+$/} @feat_id_cols))
-  {
-    error("Invalid ID column number(s) (-D): [",
-	  join(',',grep {$_ !~ /^\d+$/} @feat_id_cols),
-	  "] for feature file (-f).");
-    quit(15);
-  }
-
-if(scalar(grep {$_ !~ /^\d+$/} @data_comment_cols))
-  {
-    error("Invalid comment column number(s) (-m): [",
-	  join(',',grep {$_ !~ /^\d+$/} @data_comment_cols),
+    error("Invalid out column number(s) (-m): [",
+	  join(',',grep {$_ !~ /^\d+$/} @data_out_cols),
 	  "] for input data file (-i).");
     quit(16);
   }
 
-if(scalar(grep {$_ !~ /^\d+$/} @feat_comment_cols))
+if(scalar(grep {$_ !~ /^\d+$/} @feat_out_cols))
   {
-    error("Invalid comment column number(s) (-M): [",
-	  join(',',grep {$_ !~ /^\d+$/} @feat_comment_cols),
+    error("Invalid out column number(s) (-M): [",
+	  join(',',grep {$_ !~ /^\d+$/} @feat_out_cols),
 	  "] for input data file (-i).");
     quit(17);
   }
@@ -547,25 +526,32 @@ if(!isStandardOutputToTerminal() && !$noheader)
 my $current_feature_file = '';
 my $set_num              = 0;
 my $feature_hash         = {};
+my $max_feat_cols        = {};
+my $feat_headers         = {};
+my $pad_feat_outs        = 0;
 my $sample_hash          = {};
 my $current_sample_hash  = {};
 
 #Create array indexes from the column numbers for the feature file columns
-my @feat_id_inds      = map {$_ - 1} @feat_id_cols;
-my @feat_comment_inds = map {$_ - 1} @feat_comment_cols;
+my @feat_out_inds     = map {$_ - 1} @feat_out_cols;
 my @feat_chr1_inds    = map {$_ - 1} @feat_chr1_cols;
 my @feat_start1_inds  = map {$_ - 1} @feat_start1_cols;
 my @feat_end1_inds    = map {$_ - 1} @feat_end1_cols;
+my $multiple_samples  = ($feat_sample_col ne '' && $feat_sample_col != 0);
 my($feat_sample_ind);
-$feat_sample_ind = $feat_sample_col - 1 if($feat_sample_col ne '' &&
-					   $feat_sample_col != 0);
+$feat_sample_ind = $feat_sample_col - 1 if($multiple_samples);
 
 #Create array indexes from the column numbers for the input data file columns
-my @data_id_inds      = map {$_ - 1} @data_id_cols;
 my @data_chr1_inds    = map {$_ - 1} @data_chr1_cols;
 my @data_start1_inds  = map {$_ - 1} @data_start1_cols;
 my @data_end1_inds    = map {$_ - 1} @data_end1_cols;
-my @data_comment_inds = map {$_ - 1} @data_comment_cols;
+my @data_out_inds     = map {$_ - 1} @data_out_cols;
+
+#Keep track of whether we will need to pad the feature out columns to
+#ensure a consistent number of columns.  Note, if the user supplied specific
+#columns for the feature output, then this will be unnecessary.  Padding will
+#also only eventually be done if the number of columns is uneven.
+$pad_feat_outs = scalar(@feat_out_inds);
 
 #Keep track of the largest feature (to be added to the search range in order to
 #create a hash of feature regions to speed up the search).  The script will
@@ -673,9 +659,12 @@ foreach my $input_file_set (@input_files)
 			    $outfile_stub : $current_feature_file),
 		       '] Opened feature file.')}
 
-	    my $line_num     = 0;
-	    my $verbose_freq = 100;
-	    my $redund_check = {};
+	    my $line_num       = 0;
+	    my $verbose_freq   = 100;
+	    my $redund_check   = {};
+	    my $feat_col_check = {}; #Allows a check on the number of columns
+	    $max_feat_cols->{$current_feature_file} = 0;
+	    my $first_feat_recorded = 0;
 
 	    #For each line in the current feature file
 	    while(getLine(*FEAT))
@@ -686,35 +675,58 @@ foreach my $input_file_set (@input_files)
 			      "] Reading line: [$line_num].")
 		  unless($line_num % $verbose_freq);
 
-		next if(/^\s*#/ || /^\s*$/);
+		next if(/^\s*$/);
 
 		chomp;
 		my @cols = split(/ *\t */,$_,-1);
 
 		#Skip rows that don't have enough columns
 		if(scalar(grep {defined($_) && $#cols < $_}
-			  (@feat_id_inds,@feat_comment_inds,
-			   $feat_sample_ind,@feat_chr1_inds,
+			  (@feat_out_inds,$feat_sample_ind,@feat_chr1_inds,
 			   @feat_start1_inds,@feat_end1_inds)))
 		  {
-		    if(/\t/)
+		    if(/\t/ && $_ !~ /^\s*#/)
 		      {warning("Line [$line_num] of feature file ",
 			       "[$current_feature_file] has too few ",
 			       "columns.  Skipping.")}
-		    #Else - assume it's a header line and don't report it
+		    #Else - assume it's a commented line and don't report it
 		    next;
 		  }
 
-		my $feat_id = (scalar(@feat_id_cols) ?
-			       join($id_delimiter,@cols[@feat_id_inds]) : '');
+		my $feat_cols = scalar(@cols);
+		if($feat_cols > $max_feat_cols->{$current_feature_file})
+		  {$max_feat_cols->{$current_feature_file} = $feat_cols}
 
-		my $feat_comment = (scalar(@feat_comment_inds) ?
-				    join($feat_comment_delimiter,
-					 @cols[@feat_comment_inds]) : '');
+		#Skip commented lines
+		if(/^\s*#/)
+		  {
+		    #We cannot get here unless there is enough columns, so we
+		    #can assume this is a header line since it is commented and
+		    #has tabs, but we only want to create column headers if
+		    #they haven't already been set
+		    unless(exists($feat_headers->{$current_feature_file}))
+		      {
+			$feat_headers->{$current_feature_file} =
+			  [scalar(@feat_out_inds) ?
+			   @cols[@feat_out_inds] : @cols];
+		      }
+		    next;
+		  }
+
+		$feat_col_check->{$feat_cols}++;
+
+		my $feat_out = (scalar(@feat_out_inds) ?
+				join("\t",@cols[@feat_out_inds]) :
+				join("\t",@cols));
 
 		my $feat_sample = (defined($feat_sample_ind) ?
 				   $cols[$feat_sample_ind] : '');
 
+		#For each pair of coordinates (and chromosome) in a row that we
+		#are searching... add it to the feature hash.  Note, we will be
+		#duplicating data here, but we're only reporting the closest
+		#match, so we should only be outputting 1 row for a match
+		#(unless both pairs of coordinates in a row overlap the data)
 		for(my $f_ind = 0;$f_ind < scalar(@feat_chr1_inds);$f_ind++)
 		  {
 		    my($feat_chr1,$feat_start1,$feat_end1) =
@@ -766,6 +778,16 @@ foreach my $input_file_set (@input_files)
 			  }
 			else
 			  {
+			    #If we have not yet parsed any real data, assume
+			    #this is a header line and record the headers
+			    if($first_feat_recorded == 0 &&
+			       !exists($feat_headers->{$current_feature_file}))
+			      {
+				$feat_headers->{$current_feature_file} =
+				  [scalar(@feat_out_inds) ?
+				   @cols[@feat_out_inds] : @cols];
+				last;
+			      }
 			    error("Unable to parse start1 and end1 of ",
 				  "feature on line [$line_num] of feature ",
 				  "file [$current_feature_file].  Skipping.");
@@ -777,6 +799,16 @@ foreach my $input_file_set (@input_files)
 		    $feat_start1 =~ s/[,\s]//g;
 		    if($feat_start1 !~ /^\d+$/)
 		      {
+			#If we have not yet parsed any real data, assume
+			#this is a header line and record the headers
+			if($first_feat_recorded == 0 &&
+			   !exists($feat_headers->{$current_feature_file}))
+			  {
+			    $feat_headers->{$current_feature_file} =
+			      [scalar(@feat_out_inds) ?
+			       @cols[@feat_out_inds] : @cols];
+			    last;
+			  }
 			error("Invalid feature start1 coordinate: ",
 			      "[$feat_start1] in column ",
 			      "[$feat_start1_cols[$f_ind]] on line ",
@@ -790,6 +822,16 @@ foreach my $input_file_set (@input_files)
 		    $feat_end1 =~ s/[,\s]//g;
 		    if($feat_end1 !~ /^\d+$/)
 		      {
+			#If we have not yet parsed any real data, assume
+			#this is a header line and record the headers
+			if($first_feat_recorded == 0 &&
+			   !exists($feat_headers->{$current_feature_file}))
+			  {
+			    $feat_headers->{$current_feature_file} =
+			      [scalar(@feat_out_inds) ?
+			       @cols[@feat_out_inds] : @cols];
+			    last;
+			  }
 			error("Invalid feature end1 coordinate: [$feat_end1] ",
 			      "in column [$feat_end1_cols[$f_ind]] on line ",
 			      "[$line_num] of feature file ",
@@ -811,38 +853,22 @@ foreach my $input_file_set (@input_files)
 		    #and grab the smallest and largest coordinates, many splice
 		    #variants will yield the same "feature".  Here, we check
 		    #for features that are indistinguishable
-		    if(exists($redund_check->{$feat_id}) &&
-		       exists($redund_check->{$feat_id}->{$feat_sample}) &&
-		       exists($redund_check->{$feat_id}->{$feat_sample}
-			      ->{$feat_chr1}) &&
-		       exists($redund_check->{$feat_id}->{$feat_sample}
-			      ->{$feat_chr1}->{$feat_start1}) &&
-		       exists($redund_check->{$feat_id}->{$feat_sample}
-			      ->{$feat_chr1}->{$feat_start1}->{$feat_end1}) &&
-		       exists($redund_check->{$feat_id}->{$feat_sample}
+		    if(exists($redund_check->{$feat_sample}) &&
+		       exists($redund_check->{$feat_sample}->{$feat_chr1}) &&
+		       exists($redund_check->{$feat_sample}->{$feat_chr1}
+			      ->{$feat_start1}) &&
+		       exists($redund_check->{$feat_sample}->{$feat_chr1}
+			      ->{$feat_start1}->{$feat_end1}) &&
+		       exists($redund_check->{$feat_sample}
 			      ->{$feat_chr1}->{$feat_start1}->{$feat_end1}
-			      ->{$feat_comment}))
+			      ->{$feat_out}))
 		      {
 			warning("Skipping redundant feature found in feature ",
-				"file: [$current_feature_file]: [$feat_id,",
+				"file: [$current_feature_file]: [",
 				"$feat_sample,$feat_chr1,$feat_start1,",
-				"$feat_end1,$feat_comment].");
+				"$feat_end1,$feat_out].");
 			next;
 		      }
-
-#		    $feat_chr1 = uc($feat_chr1);
-#		    $feat_chr1 =~ s/chr(omosome)?/chr/i;
-#		    if($feat_chr1 !~ /^chr/)
-#		      {$feat_chr1 = "chr$feat_chr1"}
-
-#		    if($feat_id !~ /\S/)
-#		      {
-#			error("Invalid feature ID: [$feat_id] in column(s) [",
-#			      join(',',@feat_id_cols),"] on line [$line_num] ",
-#			      "of feature file [$current_feature_file].  ",
-#			      "Skipping.");
-#			next;
-#		      }
 
 		    my $dir = ($feat_start1 < $feat_end1 ? '+' : '-');
 
@@ -850,17 +876,19 @@ foreach my $input_file_set (@input_files)
 		    ($feat_start1,$feat_end1) = sort {$a <=> $b}
 		      ($feat_start1,$feat_end1);
 
-		    debug("Adding feature: ID => $feat_id, SAMPLE => ",
-			  "$feat_sample, CHR1 => $feat_chr1, START1 => ",
-			  "$feat_start1, STOP1 => $feat_end1") if($DEBUG > 1);
+		    debug("Adding feature: SAMPLE => $feat_sample, ",
+			  "CHR1 => $feat_chr1, START1 => $feat_start1, ",
+			  "STOP1 => $feat_end1") if($DEBUG > 1);
 
 		    push(@{$feature_hash->{$current_feature_file}},
-			 {ID      => $feat_id,
-			  SAMPLE  => $feat_sample,
-			  CHR1    => $feat_chr1,
-			  START1  => $feat_start1,
-			  STOP1   => $feat_end1,
-			  COMMENT => $feat_comment});
+			 {SAMPLE => $feat_sample,
+			  CHR1   => $feat_chr1,
+			  START1 => $feat_start1,
+			  STOP1  => $feat_end1,
+			  OUT    => $feat_out,
+			  COLS   => $feat_cols});
+
+		    $first_feat_recorded = 1;
 
 		    if($largest_range < (abs($feat_end1-$feat_start1) + 1 +
 					 (2 * $search_range)))
@@ -869,14 +897,87 @@ foreach my $input_file_set (@input_files)
 
 		    #Record the feature in the redundancy hash to help
 		    #eliminate duplicates.
-		    $redund_check->{$feat_id}->{$feat_sample}->{$feat_chr1}
-		      ->{$feat_start1}->{$feat_end1}->{$feat_comment} = 1;
+		    $redund_check->{$feat_sample}->{$feat_chr1}->{$feat_start1}
+		      ->{$feat_end1}->{$feat_out} = 1;
 		  }
 
-		$sample_hash->{$current_feature_file}->{$feat_sample} = 1;
+		$sample_hash->{$current_feature_file}->{$feat_sample} = 1
+		  if($first_feat_recorded);
 	      }
 
 	    close(FEAT);
+
+	    #If we intend to pad rows with missing columns, check to see if
+	    #it's necessary, and issue a warning if that's the case
+	    if($pad_feat_outs && scalar(keys(%$feat_col_check)) > 1)
+	      {
+		warning("The number of columns in feature file: ",
+			"[$current_feature_file] appears to be ",
+			"inconsistent.  Here is a listing of the number of ",
+			"columns and the number of rows with those numbers ",
+			"of columns:\n\t",
+			join("\n\t",map {"$_\t$feat_col_check->{$_}"}
+			     sort {$a <=> $b} keys(%$feat_col_check)),
+			"\nRows with fewer columns than the max will be ",
+			"padded with empty columns.");
+
+		foreach my $fh (@{$feature_hash->{$current_feature_file}})
+		  {
+		    if($fh->{COLS} < $max_feat_cols->{$current_feature_file})
+		      {
+			my $diff = $max_feat_cols->{$current_feature_file} -
+			  $fh->{COLS};
+			foreach(1..$diff)
+			  {$fh->{OUT} .= "\t"}
+			$fh->{COLS} = $max_feat_cols->{$current_feature_file};
+		      }
+		    elsif($fh->{COLS} >
+			  $max_feat_cols->{$current_feature_file})
+		      {
+			error("This should not have happened.  Please report ",
+			      "error 1 to rwleach\@ccr.buffalo.edu.");
+		      }
+		  }
+	      }
+
+	    ##
+	    ##We need to ensure that we have headers, regardless of whether or
+	    ##not the input file had headers
+	    ##
+
+	    #Process the feature column headers
+	    if(!exists($feat_headers->{$current_feature_file}))
+	      {$feat_headers->{$current_feature_file} =
+		 [map {"ftcol($_)"}
+		  (1..$max_feat_cols->{$current_feature_file})]}
+	    #We can assume it cannot be more because the max was based on the
+	    #column header row as well
+	    elsif(scalar(@{$feat_headers->{$current_feature_file}}) <
+		  $max_feat_cols->{$current_feature_file})
+	      {
+		while(scalar(@{$feat_headers->{$current_feature_file}}) <
+		      $max_feat_cols->{$current_feature_file})
+		  {
+		    push(@{$feat_headers->{$current_feature_file}},
+			 "ftcol(" .
+			 (scalar(@{$feat_headers->{$current_feature_file}}) +
+			  1) . ")")
+		  }
+	      }
+	    #Now I will check for any header that is an empty string
+	    foreach(0..$#{$feat_headers->{$current_feature_file}})
+	      {if(!defined($feat_headers->{$current_feature_file}->[$_]) ||
+		  $feat_headers->{$current_feature_file}->[$_] eq '')
+		 {$feat_headers->{$current_feature_file}->[$_] =
+		    "ftcol(" . ($_ + 1) . ")"}}
+
+	    debug("Feature headers: [",
+		  join(',',@{$feat_headers->{$current_feature_file}}),"].")
+	      if($DEBUG > 1);
+
+	    ##
+	    ##Sort the feature hash based on start coordinate
+	    ##
 
 	    @{$feature_hash->{$current_feature_file}} =
 	      sort {$a->{START1} <=> $b->{START1}}
@@ -1043,87 +1144,14 @@ foreach my $input_file_set (@input_files)
 	  {verbose('[',($input_file eq '-' ? $outfile_stub : $input_file),'] ',
 		   'Opened input file.')}
 
-	##
-	## Print Column headers
-	##
-
-	my $data_cmnt_hdr_str = join($data_comment_delimiter,
-				     map {"DataComment($_)"}
-				     (1..scalar(@feat_comment_cols)));
-
-	#Column headers:
-	#DataRowID       (if a data id was supplied on the command line)
-	#DataComment(1),DataComment(2),... (there may be 0 of these)
-	#Foreach set of coordinates $c in 1 row, there will be these columns...
-	#  SeqID$c       ($c will be empty if there's only 1 set of coords)
-	#  Start$c
-	#  Stop$c
-	#  NumSamples$c
-	#  SumDistances$c
-	#  For each sample $s in the feature data, there will be these columns
-	#    Smpl-$s-FeatID$c
-	#    Smpl-$s-FeatDist$c
-	#    Smpl-$s-FeatStart$c
-	#    Smpl-$s-FeatStop$c
-	#    For each feature comment column $f in the feature data...
-	#      Smpl-$s-FeatComment($f)$c
-	#Unfortunately, there will always be an empty column at the end
-	print("#",(scalar(@data_id_cols) ? "DataRowID\t" : ''),
-
-	      #There may not be comment columns, so the trailing tab is
-	      #conditionally printed
-	      (scalar(@feat_comment_cols) ? "$data_cmnt_hdr_str\t" : ''),
-
-	      #Join together columns associated with all the sets of
-	      #coordinates in the input file
-	      join("\t",
-		   map
-		   {
-		     #If there's more than one, we're going to add a sequential
-		     #number to each set of column headers associated with
-		     #input coordinate sets
-		     my $c = ($#data_start1_cols > 0 ? $_ + 1 : "");
-
-		     #These are the standard feature headers for each feature
-		     #assigned as being closest to the data coordinates
-		     my @feat_hdrs = map {$_ . $c} ('FeatID','FeatDist',
-						    'FeatStart','FeatStop');
-
-		     #Add optional headers for the feature comment columns
-		     if(scalar(@feat_comment_cols))
-		       {
-			 if($feat_comment_delimiter eq "\t")
-			   {push(@feat_hdrs,
-				 map {"FeatComment($_)"}
-				 (1..scalar(@feat_comment_cols)))}
-			 else
-			   {push(@feat_hdrs,'FeatComment')}
-		       }
-
-		     "SeqID$c\tStart$c\tStop$c\t" .
-		       "NumSamples$c\tSumDistances$c\t" .
-			 #Grab all the feature data for each sample
-			 #Note, if no samples were indicated, it is assumed
-			 #that a sample name using a empty string is in the
-			 #current sample hash
-			 join("\t",
-			      map
-			      {
-				#Add the sample ID to the Feature headers
-				my $smpl=($_ ? "Smpl-$_-" : "");
-				$smpl . join("\t$smpl",@feat_hdrs)
-			      }
-			      sort {$a cmp $b} keys(%$current_sample_hash)) .
-				"\t"
-		   } (0..$#data_start1_cols)),
-
-	      "\n")
-	  if(defined($outfile_suffix) || scalar(@outdirs) || $first_loop);
-
-	$first_loop = 0;
-
-	my $line_num     = 0;
-	my $verbose_freq = 100;
+	my $print_header  = (defined($outfile_suffix) || scalar(@outdirs) ||
+			     $first_loop);
+	$first_loop       = 0;
+	my $line_num      = 0;
+	my $verbose_freq  = 100;
+	my $max_data_cols = 0;
+	my @data_header   = ();
+	my $inconsistency_reported = 0;
 
 	#For each line in the current input file
 	while(getLine(*INPUT))
@@ -1134,33 +1162,95 @@ foreach my $input_file_set (@input_files)
 			  "] Reading line: [$line_num].")
 	      unless($line_num % $verbose_freq);
 
-	    next if(/^\s*#/ || /^\s*$/);
+	    #Skip empty lines
+	    next if(/^\s*$/);
 
 	    chomp;
 	    my @cols = split(/ *\t */,$_,-1);
 
 	    #Skip rows that don't have enough columns
 	    if(scalar(grep {defined($_) && $#cols < $_}
-		      (@data_id_inds,@data_comment_inds,@data_chr1_inds,
+		      (@data_out_inds,@data_chr1_inds,
 		       @data_start1_inds,@data_end1_inds)))
 	      {
-		my $line_sample = $_;
-		$line_sample =~ s/(.{1,30}).*/$1/;
-		warning("Skipping line [$line_num] with too few columns ",
-			"[$line_sample...].");
+		#Only print the warning about too few columns if this line is
+		#not commented out
+		unless(/^\s*#/)
+		  {
+		    my $line_sample = $_;
+		    $line_sample =~ s/(.{1,30}).*/$1/;
+		    warning("Skipping line [$line_num] with too few columns ",
+			    "[$line_sample...].");
+		  }
 		next;
 	      }
 
-	    my $data_id = '';
-	    $data_id = join($id_delimiter,@cols[@data_id_inds])
-	      if(scalar(@data_id_inds));
+	    my $num_data_cols = scalar(@cols);
 
-	    debug("The data ID: [$data_id] looks weird on line $line_num: ",
-		  "[$_]") if($data_id =~ /^,/);
+	    #If this is the first time we're setting max_data_cols
+	    if($max_data_cols == 0)
+	      {$max_data_cols = $num_data_cols}
+	    #Else if we've encountered an inconsistency, it's not commented,
+	    #we're outputing all columns, and we haven't already reported
+	    #inconsistencies
+	    elsif($num_data_cols != $max_data_cols && $_ !~ /^\s*#/ &&
+		  scalar(@data_out_inds) == 0 && !$inconsistency_reported)
+	      {
+		error("The number of columns in the data file is ",
+		      "inconsistent.  All lines will be trimmed/padded ",
+		      "to match the number of columns on the first line ",
+		      "(which will be either the column headers or the ",
+		      "first row of data if there are no headers.");
+		$inconsistency_reported = 1;
+		#Do not change the established max
+	      }
 
-	    my $data_comment = (scalar(@data_comment_inds) ?
-				join($data_comment_delimiter,
-				     @cols[@data_comment_inds]) : '');
+	    #Skip commented lines (and keep an eye out for custom headers when
+	    #they are on a commented line - see code below for finding
+	    #uncommented headers)
+	    if(/^\s*#/)
+	      {
+		#We cannot get here unless there are enough columns, so we
+		#can assume this is a header line since it is commented and
+		#has tabs, but we only want to print column headers if
+		#they haven't already been printed
+		if(scalar(@data_header) == 0)
+		  {
+		    @data_header = (scalar(@data_out_inds) ?
+				    @cols[@data_out_inds] : @cols);
+		  }
+		next;
+	      }
+
+	    #If we are outputting all columns, we need to ensure a consistent
+	    #number
+	    unless(scalar(@data_out_inds))
+	      {
+		#Trim/pad the columns to match the first row
+		#Assumes max_data_cols is set
+		if(scalar(@cols) < $max_data_cols)
+		  {
+		    my $diff = $max_data_cols - scalar(@cols);
+		    foreach(1..$diff)
+		      {push(@cols,'')}
+		    $num_data_cols = $max_data_cols;
+		  }
+		elsif(scalar(@cols) < $max_data_cols)
+		  {
+		    my $diff = scalar(@cols) - $max_data_cols;
+		    warning("Trimming [$diff] columns from line number ",
+			    "[$line_num].  This line contains more columns ",
+			    "[$num_data_cols] that previous lines ",
+			    "[$max_data_cols] in the file.");
+		    foreach(1..$diff)
+		      {pop(@cols)}
+		    $num_data_cols = $max_data_cols;
+		  }
+	      }
+
+	    my $data_out = (scalar(@data_out_inds) ?
+			    join("\t",@cols[@data_out_inds]) :
+			    join("\t",@cols));
 
 	    my @closest_feature_hashes = ();
 	    my($closest_distance);
@@ -1224,6 +1314,14 @@ foreach my $input_file_set (@input_files)
 		      }
 		    else
 		      {
+			#If we have not yet printed the header or stored it,
+			#assume this is a header line and record the headers
+			if($print_header == 1 && scalar(@data_header) == 0)
+			  {
+			    @data_header = (scalar(@data_out_inds) ?
+					    @cols[@data_out_inds] : @cols);
+			    last;
+			  }
 			error("Unable to parse start1 and end1 of input data ",
 			      "on line [$line_num] of input data file ",
 			      "[$input_file].  Skipping.");
@@ -1236,6 +1334,14 @@ foreach my $input_file_set (@input_files)
 		$data_start1 =~ s/[,\s]//g;
 		if($data_start1 !~ /^\d+$/)
 		  {
+		    #If we have not yet printed the header or stored it,
+		    #assume this is a header line and record the headers
+		    if($print_header == 1 && scalar(@data_header) == 0)
+		      {
+			@data_header = (scalar(@data_out_inds) ?
+					@cols[@data_out_inds] : @cols);
+			last;
+		      }
 		    error("Invalid start1 coordinate: [$data_start1] ",
 			  "in column [$data_start1_cols[$coord_ind]] on line ",
 			  "[$line_num] of input file [$input_file].  ",
@@ -1248,6 +1354,14 @@ foreach my $input_file_set (@input_files)
 		$data_end1 =~ s/[,\s]//g;
 		if($data_end1 !~ /^\d+$/)
 		  {
+		    #If we have not yet printed the header or stored it,
+		    #assume this is a header line and record the headers
+		    if($print_header == 1 && scalar(@data_header) == 0)
+		      {
+			@data_header = (scalar(@data_out_inds) ?
+					@cols[@data_out_inds] : @cols);
+			last;
+		      }
 		    error("Invalid end1 coordinate: [$data_end1] ",
 			  "in column [$data_end1_cols[$coord_ind]] on line ",
 			  "[$line_num] of input file ",
@@ -1267,20 +1381,6 @@ foreach my $input_file_set (@input_files)
 		    push(@closest_feature_hashes,{});
 		    next;
 		  }
-
-		#$data_chr1 = uc($data_chr1);
-		#$data_chr1 =~ s/chr(omosome)?/chr/i;
-		#if($data_chr1 !~ /^chr/)
-		#  {$data_chr1 = "chr$data_chr1"}
-
-		#if($data_id !~ /\S/)
-		#  {
-		#    error("Invalid ID: [$data_id] in column [",
-		#	  join(',',@data_id_cols),"] on line [$line_num] ",
-		#	  "of input file [$current_feature_file].  ",
-		#	  "Skipping: [$data_id].");
-		#    next;
-		#  }
 
 		#Order the coordinates
 		($data_start1,$data_end1) = sort {$a <=> $b}
@@ -1316,9 +1416,14 @@ foreach my $input_file_set (@input_files)
 		my $region = ($magnitude ?
 			      (int($mycoord / $magnitude) * $magnitude) : 0);
 
+		debug("There are [",scalar(keys(%{$feature_hash->{$current_feature_file}->{$data_chr1}})),"] regions for chromosome [$data_chr1] in the feature hash for file [$current_feature_file].");
+
 		#First add the features in the region to the left
 		#(Note: if it's < 0, it won't exist in the hash)
 		$region -= $magnitude;
+
+		debug("There are [",(exists($feature_hash->{$current_feature_file}->{$data_chr1}->{$region}) ? scalar(@{$feature_hash->{$current_feature_file}->{$data_chr1}->{$region}}) : 0),"] features for chromosome/region [$data_chr1/$region] in the feature hash for file [$current_feature_file].");
+
 		if($magnitude &&
 		   exists($feature_hash->{$current_feature_file}
 			  ->{$data_chr1}) &&
@@ -1330,6 +1435,9 @@ foreach my $input_file_set (@input_files)
 
 		#Add the features in the region containing the base coordinate
 		$region += $magnitude;
+
+		debug("There are [",(exists($feature_hash->{$current_feature_file}->{$data_chr1}->{$region}) ? scalar(@{$feature_hash->{$current_feature_file}->{$data_chr1}->{$region}}) : 0),"] features for chromosome/region [$data_chr1/$region] in the feature hash for file [$current_feature_file].");
+
 		if(exists($feature_hash->{$current_feature_file}
 			  ->{$data_chr1}) &&
 		   exists($feature_hash->{$current_feature_file}
@@ -1340,6 +1448,9 @@ foreach my $input_file_set (@input_files)
 
 		#Add the features from the region to the right
 		$region += $magnitude;
+
+		debug("There are [",(exists($feature_hash->{$current_feature_file}->{$data_chr1}->{$region}) ? scalar(@{$feature_hash->{$current_feature_file}->{$data_chr1}->{$region}}) : 0),"] features for chromosome/region [$data_chr1/$region] in the feature hash for file [$current_feature_file].");
+
 		if($magnitude &&
 		   exists($feature_hash->{$current_feature_file}
 			  ->{$data_chr1}) &&
@@ -1358,12 +1469,11 @@ foreach my $input_file_set (@input_files)
 						 $search_range);
 		#keys (of feature1):
 		#$sample
-		# ID
 		# SAMPLE
 		# CHR1
 		# START1
 		# STOP1
-		# COMMENT
+		# OUT
 		# DISTANCE
 		# OTHERS (array of hashes containing all above keys)
 
@@ -1386,48 +1496,141 @@ foreach my $input_file_set (@input_files)
 		     if($DEBUG > 1);}
 	      }
 
-	    #Columns:
-	    #DataRowID
-	    #DataComment(1),DataComment(2),... (there may be 0 of these)
-	    #Foreach set of coords $c in 1 row, there will be these columns...
-	    #  SeqID$c       ($c will be empty if there's only 1 set of coords)
-	    #  Start$c
-	    #  Stop$c
-	    #  NumSamples$c
-	    #  SumDistances$c
-	    #  For each sample $s in the features, there will be these columns
-	    #    Smpl-$s-FeatID$c
-	    #    Smpl-$s-FeatDist$c
-	    #    Smpl-$s-FeatStart$c
-	    #    Smpl-$s-FeatStop$c
-	    #    For each feature comment column $f in the feature data...
-	    #      Smpl-$s-FeatComment($f)$c
-	    #Unfortunately, there will always be an empty column at the end
-	    print((scalar(@data_id_cols) ? "$data_id\t" : ''),
-		  (scalar(@data_comment_inds) ? "$data_comment\t" : ''),
+	    if($print_header)
+	      {
+		##
+		##We need to ensure that we have headers, regardless of whether
+		##or not the input file had headers
+		##
 
-		  #Join together columns associated with all the sets of
-		  #coordinates in the input file
+		#Process the data column headers
+		if(scalar(@data_header) == 0)
+		  {@data_header = (map {"datcol($_)"} (1..$max_data_cols))}
+		#We can assume it cannot be more because the max was based on
+		#the column header row as well
+		elsif(scalar(@data_header) < $max_data_cols)
+		  {
+		    while(scalar(@data_header) < $max_data_cols)
+		      {push(@data_header,
+			    "datcol(" . (scalar(@data_header) + 1) . ")")}
+		  }
+		#Now I will check for any header that is an empty string
+		foreach(0..$#data_header)
+		  {if(!defined($data_header[$_]) || $data_header[$_] eq '')
+		     {$data_header[$_] = "datcol(" . ($_ + 1) . ")"}}
+
+		##
+		## Print Column headers
+		##
+
+		debug("Number of keys in current sample hash: [",
+		      scalar(keys(%$current_sample_hash)),
+		      "].\nFeature headers: [",
+		      join(',',@{$feat_headers->{$current_feature_file}}),"].")
+		  if($DEBUG > 1);
+
+		#Columns:
+		#datcol(1),datcol(2),... (there will be at least 1)
+		#Foreach set of coords $c in 1 row, there will be these cols...
+		#  If there are multiple samples
+		#    NumSamples$c ($c will be empty if there's 1 coord set)
+		#    SumDistances$c
+		#  For each sample $s in the features, there will be these cols
+		#    Smpl-$s-FeatDist$c
+		#    For each feature out column $f in the feature data...
+		#      Smpl-$s-ftcol($f)$c
+		print(join("\t",@data_header),"\t",
+
+		      #Join together columns associated with all the sets of
+		      #coordinates in the input file
+		      join("\t",
+			   map
+			   {
+			     #If there's more than one, we're going to add a
+			     #sequential number to each set of column headers
+			     #associated with input coordinate sets
+			     my $c = ($#data_start1_cols > 0 ?
+				      '[' . ($_ + 1) . ']' : '');
+
+			     my @feat_hdrs =
+			       @{$feat_headers->{$current_feature_file}};
+			     my $map_result = '';
+
+			     #Add 2 columns before the feature columns when
+			     #there are multiple samples in the data
+			     if($multiple_samples)
+			       {$map_result = "NumSamples[$c]\t" .
+				  "SumDistances[$c]\t"}
+
+			     $map_result .=
+			       #Note, if no samples were indicated, it is
+			       #assumed that a sample name using a empty string
+			       #is in the current sample hash
+			       join("\t",
+				    map
+				    {
+				      #Determine the sample prefix to the
+				      #feature column headers
+				      my $smpl = ($_ ? "Smpl-$_-" : "");
+
+				      #Prepend a sample's feature distance
+				      #column header before each sample's set
+				      #of feature column headers
+				      $smpl . "Distance[$c]\t$smpl" .
+					join("[$c]\t$smpl",@feat_hdrs) . "[$c]"
+				    }
+				    sort {$a cmp $b}
+				    keys(%$current_sample_hash));
+			     $map_result
+			   } (0..$#data_start1_cols)),
+
+		      "\n");
+
+		$print_header = 0;
+	      }
+
+	    #Columns:
+	    #datcol(1),datcol(2),... (there will be at least 1)
+	    #Foreach set of coords $c in 1 row, there will be these columns...
+	    #  If there are multiple samples
+	    #    NumSamples$c ($c will be empty if there's only 1 coords set)
+	    #    SumDistances$c
+	    #  For each sample $s in the features, there will be these columns
+	    #    Smpl-$s-FeatDist$c
+	    #    For each feature out column $f in the feature data...
+	    #      Smpl-$s-ftcol($f)$c
+	    #Unfortunately, there will always be an empty column at the end
+	    print("$data_out\t",
+
+		  #Join together sets of columns associated with each set of
+		  #coordinates in one row of the input file we're using as
+		  #search coordinates
 		  join("\t",
 		       map
 		       {
-			 my $n = $_;
+			 my $n          = $_; #Index into data_start1_cols
+			 my @map_result = ();
+
+			 #If there are multiple samples, push on the number of
+			 #samples that have features close to the current data,
+			 #along with the sum of the distances each sample's
+			 #closest feature to the data coordinates.
 			 #Calculate the sum distances
-			 my $sum_distances1 = 0;
-			 foreach my $sam (keys(%{$closest_feature_hashes[$n]}))
-			   {$sum_distances1 +=
-			      $closest_feature_hashes[$n]->{$sam}->{DISTANCE}}
+			 if($multiple_samples)
+			   {
+			     my $sum_distances1 = 0;
+			     foreach my $sam
+			       (keys(%{$closest_feature_hashes[$n]}))
+				 {$sum_distances1 +=
+				    $closest_feature_hashes[$n]->{$sam}
+				      ->{DISTANCE}}
+			     push(@map_result,
+			       (scalar(keys(%{$closest_feature_hashes[$n]})),
+				$sum_distances1));
+			   }
 
-			 (#Order of columns for each coord pair:
-			  #SeqID, Start, Stop, NumSamples, SumDistances, then..
-			  #FeatID, FeatDist, FeatStart, FeatStop, FeatComments.
-			  $cols[$data_chr1_inds[$n]],
-			  $cols[$data_start1_inds[$n]],
-			  $cols[$data_end1_inds[$n]],
-			  scalar(keys(%{$closest_feature_hashes[$n]})),
-			  $sum_distances1,
-
-			  #Grab all the feature data for each sample
+			 push(@map_result,
+			 (#Grab all the feature data for each sample
 			  #Note, if no samples were indicated, it is
 			  #assumed that a sample name using a empty
 			  #string is in the current sample hash
@@ -1439,126 +1642,47 @@ foreach my $input_file_set (@input_files)
 			    #If there is not a closest feature
 			    if(!exists($closest_feature_hashes[$n]->{$s}))
 			      {
-				#If feature comment columns were provided
-				if(scalar(@feat_comment_cols))
-				  {@ret = ('','','','',
-					   map {''} @feat_comment_cols)}
+				#If feature out columns were provided, tack
+				#on empty values as place holders after the
+				#empty column reserved for the feature distance
+				if(scalar(@feat_out_cols))
+				  {@ret = ('',map {''} @feat_out_cols)}
+				#Else tack on empty values for all the feature
+				#columns
 				else
-				  {@ret = ('','','','')}
+				  {
+				    #empty value for the feature distance
+				    @ret = ('');
+				    foreach(1..$max_feat_cols
+					    ->{$current_feature_file})
+				      {push(@ret,'')}
+				  }
 			      }
 			    else
 			      {
-				#Create a string for the feature ID that
-				#includes any other features that are
-				#equidistant
-				my $fid =
-				  $closest_feature_hashes[$n]->{$s}->{ID} .
-
-				    #If there are other features at the same
-				    #distance away, append their IDs w/ commas
-				    (exists($closest_feature_hashes[$n]->{$s}
-					    ->{OTHERS}) &&
-				     scalar(@{$closest_feature_hashes[$n]
-						->{$s}->{OTHERS}}) ?
-				     #Append a comma to the end of the orig. ID
-				     ',' .
-				     #Now append a comma-delim list of
-				     #additional IDs
-				     join(',',
-					  map {$_->{ID}}
-					  @{$closest_feature_hashes[$n]
-					      ->{$s}->{OTHERS}}) :
-				     '');
-
-				my $strt =
-				  $closest_feature_hashes[$n]->{$s}->{START1} .
-
-				    #If there are other features at the same
-				    #distance away, append their IDs w/ commas
-				    (exists($closest_feature_hashes[$n]->{$s}
-					    ->{OTHERS}) &&
-				     scalar(@{$closest_feature_hashes[$n]
-						->{$s}->{OTHERS}}) ?
-				     #Append a comma to the end of the orig. ID
-				     ',' .
-				     #Now append a comma-delim list of
-				     #additional IDs
-				     join(',',
-					  map {$_->{START1}}
-					  @{$closest_feature_hashes[$n]
-					      ->{$s}->{OTHERS}}) :
-				     '');
-
-				my $stp =
-				  $closest_feature_hashes[$n]->{$s}->{STOP1} .
-
-				    #If there are other features at the same
-				    #distance away, append their IDs w/ commas
-				    (exists($closest_feature_hashes[$n]->{$s}
-					    ->{OTHERS}) &&
-				     scalar(@{$closest_feature_hashes[$n]
-						->{$s}->{OTHERS}}) ?
-				     #Append a comma to the end of the orig. ID
-				     ',' .
-				     #Now append a comma-delim list of
-				     #additional IDs
-				     join(',',
-					  map {$_->{STOP1}}
-					  @{$closest_feature_hashes[$n]
-					      ->{$s}->{OTHERS}}) :
-				     '');
-
 				#Return a list.  Note, we do not need to
 				#include the sequence ID because it has to be
 				#the same as the input data's sequence ID
 				@ret =
-				  ($fid,
-				   $closest_feature_hashes[$n]->{$s}
-				   ->{DISTANCE},
-				   $strt,
-				   $stp);
+				  ($closest_feature_hashes[$n]->{$s}
+				   ->{DISTANCE});
 
-				#If no feature row IDs were provided
-				if(scalar(@feat_id_cols) == 0)
-				  {shift(@ret)}
-
-				#Append comment cols if they were supplied
-				if(scalar(@feat_comment_cols))
-				  {push(@ret,
-					$closest_feature_hashes[$n]->{$s}
-					->{COMMENT})}
+				#Append out cols
+				push(@ret,
+				     $closest_feature_hashes[$n]->{$s}
+				     ->{COMB});
 			      }
 
 			    #The array returned
 			    @ret
 			  }
 			  sort {$a cmp $b}
-			  keys(%$current_sample_hash))
+			  keys(%$current_sample_hash)));
+
+			 #The array returned
+			 @map_result
 		       } (0..$#data_start1_cols)),
 		  "\n");
-
-#		  "$data_chr1\t$data_start1\t$data_end1\t",
-#		  scalar(keys(%$feature1)) . "\t$sum_distances1\t",
-#		  join("\t",
-#		       map{exists($feature1->{$_}) ?
-#
-#			     #SampleID(FeatureID
-#			     "$_($feature1->{$_}->{ID}" .
-#
-#			       #This appends on other features that are the
-#			       #same distance away, delimited by commas
-#			       (exists($feature1->{$_}->{OTHERS}) &&
-#				scalar(keys(%{$feature1->{$_}->{OTHERS}})) ?
-#				',' .
-#				join(',',keys(%{$feature1->{$_}->{OTHERS}})) :
-#				'') .
-#
-#				  #:Distance)
-#				  ":$feature1->{$_}->{DISTANCE})" : ''}
-#
-#		       sort {$a cmp $b} keys(%$current_sample_hash)),"\t",
-#
-#		  "$data_comment\n");
 	  }
 
 	close(INPUT);
@@ -1680,30 +1804,46 @@ rwleach\@ccr.buffalo.edu
                 coordinates and a feature file also with chromosomal
                 coordinates (and optional sample IDs) and reports the closest
                 feature to each pair of input coordinates.  Both the input file
-                and feature file are optionally allowed to have 2 pairs of
-                coordinates (intended to be structural variant coordinates that
+                and feature file are optionally allowed to have multiple pairs
+                of coordinates (e.g. structural variant coordinates that
                 have been narrowed down to a region identifying a breakpoint).
-                Breakpoints come in pairs, hence the two allowed regions.  You
+                Breakpoints come in pairs, hence multiple allowed regions.  You
                 can either input the structural variants as the feature file or
                 input data file.  The input data file coordinates will be
                 output with the closest feature to each region.  Sample
                 information is only used in the feature file to report how many
-                samples have structural variant breakpointss near the input
+                samples have structural variant breakpoints near the input
                 coordinate pairs.
-
-                Note that if you download segmental duplications from tcag:
-
-            http://projects.tcag.ca/humandup/segmental_b35/duplication.hg17.gff
-
-                and you are comparing them to structural variants generated
-                from an hg19 reference alignment, you will need to convert the
-                coordinates to hg19.
 
 * INPUT FORMAT: Tab-delimited text file.
 
 * FEATURE FILE FORMAT: Tab-delimited text file.
 
-* OUTPUT FORMAT: Tab-delimited text file.
+* OUTPUT FORMAT: Tab-delimited text file.  Columns from the input data file and
+                 feature file are all reported in the same order unless
+                 otherwise specified by the -m or -w options respectively.
+                 Intervening columns indicating feature distances of closest
+                 features among samples are reported.  If -u, -d, -v, or -t are
+                 supplied, the feature column set specified by -w and
+                 associated intervening columns are multiplied.  See column
+                 headers to know which columns contain features associated to
+                 which samples, regions, and orientations.  Column headers in
+                 the input files will be re-used if they can be identified.
+                 Otherwise, columns from the input data files will have headers
+                 formatted as 'datcol(#)' and columns from the feature file
+                 will be formatted as 'ftcol(#)' where '#' indicates column
+                 number from the original input/feature file.  Here is an
+                 example of a full column header and what it means:
+
+                 Smpl-abc-ftcol(2)[1]{over,opp}
+
+                 This column contains features that were part of sample "abc"
+                 (the string "abc" was parsed from a sample column in the
+                 feature file).  This is column 2 from the feature file.  It
+                 contains features that were found close to the first
+                 chr/start/stop in the input data file.  It also only contains
+                 features that overlap the input data coordinates on the
+                 opposite strand.
 
 * ADVANCED FILE I/O FEATURES: Sets of input files, each with different output
                               directories can be supplied.  Supply each file
@@ -1854,28 +1994,16 @@ end_print
                                    output.  A negative value means no limit.  A
                                    0 value means only report overlapping
                                    features.
-     -d|--data-row-id-col OPTIONAL [0] The column number or numbers (separated
-                                   by non-numbers (e.g. commas)) where a unique
-                                   ID can be found in the data file (see -i)
-                                   for each row. (e.g. This could be a
-                                   structural variant ID.)  You may re-use
-                                   column numbers supplied elsewhere.  If there
-                                   is no unique ID, you can supply multiple
-                                   column numbers here that together make a
-                                   unique ID (e.g. Sequence ID, Start, and Stop
-                                   is likely unique).  See --id-delimiter to
-                                   change how these columns are linked together
-                                   in the output as an ID.
      -c|--data-seq-id-col REQUIRED [0] The column number where the sequence ID
-                                   for the first pair of coordinates can be
-                                   found in the data file (see -i).  This can
-                                   be a chromosome number, a GI number, or any
+                                   for the start and stop can be found in the
+                                   data file (see -i).  This can be a
+                                   chromosome number, a GI number, or any
                                    identifier of a single contiguous sequence.
                                    This identifier must match a sequence
                                    identifier in the feature file.  More than 1
                                    may be provided (e.g. to denote structural
                                    variants).
-     -b|--data-start-col  REQUIRED [0] The column number where the first start
+     -b|--data-start-col  REQUIRED [0] The column number where the start
                                    coordinate can be found in the data file
                                    (see -i).  The value in the column may be
                                    two numbers separated by non-numbers as long
@@ -1883,7 +2011,7 @@ end_print
                                    (e.g. 1..526 where start=1 and stop=526).
                                    More than 1 may be provided (e.g. to denote
                                    structural variants).
-     -e|--data-stop-col   REQUIRED [0] The column number where the first stop
+     -e|--data-stop-col   REQUIRED [0] The column number where the stop
                                    coordinate can be found in the data file
                                    (see -i).  The value in the column may be
                                    two numbers separated by non-numbers as long
@@ -1891,23 +2019,14 @@ end_print
                                    (e.g. 1..526 where start=1 and stop=526).
                                    More than 1 may be provided (e.g. to denote
                                    structural variants).
-     -m|--data-comment-   OPTIONAL [0] The column number(s) (separated by non-
-        col                        numbers (e.g. commas)) in the data file (see
-                                   -i) that are to be appended to the output
-                                   table.  You may re-use column numbers.  See
-                                   --comment-delimiter to change how these
-                                   columns are linked together in the output.
-     -u|--feat-row-id-col OPTIONAL [none] The column number or numbers
-                                   (separated by non-numbers (e.g. commas))
-                                   where a unique ID can be found in the
-                                   feature file (see -f) for each row (e.g.
-                                   This could be a gene ID).  You may re-use
-                                   column numbers supplied elsewhere, so if
-                                   there is no unique ID, you can supply
-                                   multiple column numbers here that together
-                                   make a unique ID.  See --id-delimiter to
-                                   change how these columns are linked together
-                                   in the output as an ID.
+     -p|--data-strand-col OPTIONAL [0] The column number where the strand
+                                   can be found in the data file (see -i).
+                                   Required if -u, -d, -v, or -t is supplied.
+     -m|--data-out-cols   OPTIONAL [all] The column number(s) (separated by
+                                   non-numbers (e.g. commas)) in the data file
+                                   (see -i) that are to be used in the output
+                                   table (in the supplied order).  You may re-
+                                   use column numbers.
      -s|--feat-sample-col OPTIONAL [0] The column number where a sample ID can
                                    be found in the feature file (see -f).  For
                                    every row of output, the samples that have
@@ -1917,7 +2036,7 @@ end_print
                                    data.  Note, sample data in the data file is
                                    not supported.
      -a|--feat-seq-id-col REQUIRED [0] The column number where the sequence ID
-                                   for the first pair of coordinates can be
+                                   for the start and stop coordinates can be
                                    found in the feature file (see -f).  This
                                    can be a chromosome number, a GI number, or
                                    any identifier of a single contiguous
@@ -1925,7 +2044,7 @@ end_print
                                    sequence identifier in the data file.  More
                                    than 1 may be provided (e.g. to denote
                                    structural variants).
-     -j|--feat-start-col  REQUIRED [0] The column number where the first start
+     -j|--feat-start-col  REQUIRED [0] The column number where the start
                                    coordinate can be found in the feature file
                                    (see -f).  The value in the column may be
                                    two numbers separated by non-numbers as long
@@ -1933,7 +2052,7 @@ end_print
                                    (e.g. 1..526 where start=1 and stop=526).
                                    More than 1 may be provided (e.g. to denote
                                    structural variants).
-     -k|--feat-stop-col   REQUIRED [0] The column number where the first stop
+     -k|--feat-stop-col   REQUIRED [0] The column number where the stop
                                    coordinate can be found in the feature file
                                    (see -f).  The value in the column may be
                                    two numbers separated by non-numbers as long
@@ -1941,19 +2060,52 @@ end_print
                                    (e.g. 1..526 where start=1 and stop=526).
                                    More than 1 may be provided (e.g. to denote
                                    structural variants).
-     -w|--feat-comment-   OPTIONAL [0] The column number or numbers (separated
-        col                        by non-numbers (e.g. commas)) in the
-                                   feature file (supplied with -f) that are to
-                                   be appended to the output rows.  You may
-                                   re-use column numbers.  See --comment-
-                                   delimiter to change how these columns are
-                                   linked together in the output.
-     --id-delimiter       OPTIONAL [.] The delimiter inserted between values in
-                                   the columns indicated in options -d and -u.
-     --data-comment-delim OPTIONAL [tab] The delimiter inserted between values
-                                   in the columns indicated in option -m.
-     --feat-comment-delim OPTIONAL [tab] The delimiter inserted between values
-                                   in the columns indicated in option -w.
+     -n|--feat-strand-col OPTIONAL [0] The column number where the strand
+                                   can be found in the data file (see -i).
+                                   Required if -t is supplied.
+     -w|--feat-out-cols   OPTIONAL [all] The column number or numbers
+                                   (separated by non-numbers (e.g. commas)) in
+                                   the feature file (supplied with -f) that are
+                                   to be included in the output table (in the
+                                   order supplied).  You may re-use column
+                                   numbers.
+     -u|--search-upstream OPTIONAL [Off] Search upstream of the input data
+                                   coordinates and report features found there.
+                                   Default behavior is to search upstream,
+                                   downstream, and overlap and report the
+                                   single closest feature (or multiple
+                                   equidistant features).  Requires -p.
+     -d|--search-         OPTIONAL [Off] Search downstream of the input data
+        downstream                 coordinates and report features found there.
+                                   Default behavior is to search upstream,
+                                   downstream, and overlap and report the
+                                   single closest feature (or multiple
+                                   equidistant features).  Requires -p.
+     -v|--search-overlap  OPTIONAL [Off] Search for overlap of the input data
+                                   coordinates and report features found there.
+                                   Default behavior is to search upstream,
+                                   downstream, and overlap and report the
+                                   single closest feature (or multiple
+                                   equidistant features).  Requires -p.
+     -t|--feat-           OPTIONAL [any] {any,plus,minus,+,-,same,opposite,
+        orientation                away,toward} Report features in the supplied
+                                   orientation.  Default behavior is to report
+                                   the closest feature in any orientation and
+                                   does not require -p or -n.  Plus, minus, +,
+                                   and - do not require -p, but require -n.
+                                   Orientations relative to the input data
+                                   coordinates (same, opposite, away, toward)
+                                   require -p and -n.  "Away" means that the
+                                   feature's upstream region is closest to the
+                                   input data coordinates.  "Toward" means that
+                                   the feature's downstream region is closest.
+                                   You may supply multiple orientations
+                                   separated by non-alphanumeric (alphanumeric
+                                   includes '_') characters.  Each orientation
+                                   will cause multuple sets of feature columns
+                                   (specified by -w) to be reported.  This is
+                                   compounded by the multiple column sets
+                                   generated by -u, -d, and -v.
      -o|--outfile-suffix  OPTIONAL [nothing] This suffix is added to the input
                                    file names to use as output files.
                                    Redirecting a file into this script will
@@ -1994,19 +2146,6 @@ end_print
                                    and command-line information will be printed
                                    at the top of all output files commented
                                    with '#' characters.
-
-EXAMPLES & TIPS
----------------
-To use a gff file downloaded from tcag.ca (see --help) with the default column
-number selections, use this series of piped commends:
-
-cut -f 1,4,5,9 duplication.hg19.most.gff.unix | cut -d '"' -f 1,4 | perl -ne 's/"//g;print' | ./featureProximity.pl -i - -f myfeatures.txt
-
-Swap the files so that the structural variants are the input data file and the
-segmental duplications are the feature file:
-
-./featureProximity.pl -i mydata.txt -f myfeatures.txt -s 0 -a 1 -j 2 -k 3 -l 0 -p 0 -t 0 -u 4 -w 0 -c 2 -b 19 -e 19 -h 4 -g 20 -n 20 -d 2,3,4,5,6 -m 0
-
 end_print
       }
 
@@ -2639,338 +2778,6 @@ sub quit
     exit($errno) if(!$ignore_errors || $errno == 0);
   }
 
-sub getClosestFeatureOLD
-  {
-    my $chr1             = $_[0];
-    my $start1           = $_[1];
-    my $stop1            = $_[2];
-    my $chr2             = $_[3];
-    my $start2           = $_[4];
-    my $stop2            = $_[5];
-    my $features         = $_[6];
-    my $num_samples      = scalar(keys(%{$_[7]}));
-    my $search_range     = $_[8];
-    my $closest_feat     = {};
-    my $closest_distance = {};
-
-    #Make shure chromosome naming conventions are the same between the files
-    my $num_inspected = scalar(grep {$_->{CHR1} eq $chr1 ||
-				       (exists($_->{CHR2}) &&
-					defined($_->{CHR2}) &&
-					$_->{CHR2} eq $chr1)} @$features);
-    unless($num_inspected)
-      {warning("No features were inspected for chromosome: [$chr1].  Please ",
-	       "check to make sure that the chromosome naming styles are the ",
-	       "same between your feature file and input file.")}
-
-    #Note: features are sorted on the start1 coordinate (which is always less
-    #than the stop1 coordinate) however since we can't sort both on start1 and
-    #start2, we must traverse the whole loop.  I'll optimize this if necessary
-    #later
-    foreach my $feat (grep {(#The feature is on the same chromosome
-			     $_->{CHR1} eq $chr1 &&
-			     (#There is no limit to the search range
-			      $search_range == 0 ||
-			      #start1 is within the search range of the feature
-			      abs($start1-$_->{STOP1})  <= $search_range ||
-			      abs($start1-$_->{START1}) <= $search_range ||
-			      #stop1 is within the search range of the feature
-			      abs($stop1-$_->{STOP1})   <= $search_range ||
-			      abs($stop1-$_->{START1})  <= $search_range ||
-			      #The start1 is inside the feature
-			      ($start1 >= $_->{START1} &&
-			       $start1 <= $_->{STOP1}) ||
-			      #The stop1 is inside the feature
-			      ($stop1 >= $_->{START1} &&
-			       $stop1 <= $_->{STOP1}) ||
-			      #The start1 and stop1 encompass the feature
-			      ($start1 <= $_->{START1} &&
-			       $stop1 >= $_->{STOP1}))) ||
-				(#There exists a second set of coordinates for
-				 #the feature and the chromosome is the same
-				 exists($_->{CHR2}) && defined($_->{CHR2}) &&
-				 $_->{CHR2} eq $chr1 &&
-				 (#There is no limit to the search range
-				  $search_range == 0 ||
-				  #start1 is w/in the search range of the feat.
-				  abs($start1-$_->{STOP2})  <= $search_range ||
-				  abs($start1-$_->{START2}) <= $search_range ||
-				  #stop1 is w/in the search range of the feat.
-				  abs($stop1-$_->{STOP2})   <= $search_range ||
-				  abs($stop1-$_->{START2})  <= $search_range ||
-				  #The start1 is inside the feature
-				  ($start1 >= $_->{START2} &&
-				   $start1 <= $_->{STOP2}) ||
-				  #The stop1 is inside the feature
-				  ($stop1 >= $_->{START2} &&
-				   $stop1 <= $_->{STOP2}) ||
-				  #The start1 and stop1 encompass the feature
-				  ($start1 <= $_->{START2} &&
-				   $stop1 >= $_->{STOP2})))}
-		      @$features)
-      {
-	$num_inspected++;
-	debug("Inspecting [$chr1 $start1 $stop1] with [$feat->{CHR1} ",
-	      "$feat->{START1} $feat->{STOP1} ",
-	      (exists($feat->{CHR2}) && defined($feat->{CHR2}) ?
-	       "$feat->{CHR2} $feat->{START2} $feat->{STOP2}" : '  '),"].")
-	  if($DEBUG > 1);;
-
-	#Strip any distances which have previously been added by previous calls
-	if(exists($feat->{DISTANCE}))
-	  {delete($feat->{DISTANCE})}
-	if(exists($feat->{OTHERS}))
-	  {delete($feat->{OTHERS})}
-
-	if($feat->{CHR1} eq $chr1)
-	  {
-	    if(#The start1 is inside the feature
-	       ($start1 >= $feat->{START1} && $start1 <= $feat->{STOP1}) ||
-	       #The stop1 is inside the feature
-	       ($stop1 >= $feat->{START1} && $stop1 <= $feat->{STOP1}) ||
-	       #The start1 and stop1 encompass the feature
-	       ($start1 <= $feat->{START1} && $stop1 >= $feat->{STOP1}))
-	      {
-		#See if there already exists a feature for this sample at this
-		#distance
-		if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-		   $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} == 0)
-		  {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
-		else
-		  {
-		    delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
-		    $closest_feat->{$feat->{SAMPLE}} = copyFeature($feat);
-		    $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		    $closest_distance->{$feat->{SAMPLE}} = 0;
-		  }
-		debug("Feature Overlaps.") if($DEBUG > 1);;
-	      }
-
-	    my $distance = (sort {$a <=> $b}
-			    (abs($start1 - $feat->{STOP1}),
-			     abs($feat->{START1} - $stop1),
-			     abs($start1 - $feat->{START1}),
-			     abs($feat->{STOP1} - $stop1)))[0];
-
-	    debug("Feature is $distance away.") if($DEBUG > 1);;
-
-	    if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
-	       $distance < $closest_distance->{$feat->{SAMPLE}})
-	      {
-		$closest_distance->{$feat->{SAMPLE}} = $distance;
-		$closest_feat->{$feat->{SAMPLE}}     = copyFeature($feat);
-		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
-		delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
-		  if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-		     exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
-		debug("Feature is Closer.") if($DEBUG > 1);;
-	      }
-	    elsif($distance == $closest_distance->{$feat->{SAMPLE}})
-	      {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
-	  }
-
-	if(exists($feat->{CHR2}) && defined($feat->{CHR2}) &&
-	   $feat->{CHR2} eq $chr1)
-	  {
-	    if(#The start1 is inside the feature
-	       ($start1 >= $feat->{START2} && $start1 <= $feat->{STOP2}) ||
-	       #The stop1 is inside the feature
-	       ($stop1 >= $feat->{START2} && $stop1 <= $feat->{STOP2}) ||
-	       #The start1 and stop1 encompass the feature
-	       ($start1 <= $feat->{START2} && $stop1 >= $feat->{STOP2}))
-	      {
-		#See if there already exists a feature for this sample at this
-		#distance
-		if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-		   $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} == 0)
-		  {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
-		else
-		  {
-		    delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
-		    $closest_feat->{$feat->{SAMPLE}} = copyFeature($feat);
-		    $closest_distance->{$feat->{SAMPLE}} = 0;
-		    $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		  }
-	      }
-
-	    my $distance = (sort {$a <=> $b}
-			    (abs($start1 - $feat->{STOP2}),
-			     abs($feat->{START2} - $stop1),
-			     abs($start1 - $feat->{START2}),
-			     abs($feat->{STOP2} - $stop1)))[0];
-
-	    if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
-	       $distance < $closest_distance->{$feat->{SAMPLE}})
-	      {
-		$closest_distance->{$feat->{SAMPLE}} = $distance;
-		$closest_feat->{$feat->{SAMPLE}}     = copyFeature($feat);
-		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
-		delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
-		  if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-		     exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
-	      }
-	    elsif($distance == $closest_distance->{$feat->{SAMPLE}})
-	      {$closest_feat->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}=1}
-	  }
-      }
-
-    my $closest_feat2 = {};
-    $closest_distance = {};
-
-    debug("Value of chr1: $chr1 start1: [$start1] chr2: $chr2 start2: ",
-	  "[$start2].") if(defined($chr1) && defined($start1) &&
-			   defined($chr2) && defined($start2));
-
-    if(defined($start2) && $start2)
-      {
-	foreach my $feat (grep {($_->{CHR1} eq $chr2 &&
-			     ($search_range == 0 ||
-			      abs($start2-$_->{STOP1})  <= $search_range ||
-			      abs($start2-$_->{START1}) <= $search_range ||
-			      abs($stop2-$_->{STOP1})   <= $search_range ||
-			      abs($stop2-$_->{START1})  <= $search_range ||
-			      #The start2 is inside the feature
-			      ($start2 >= $_->{START1} &&
-			       $start2 <= $_->{STOP1}) ||
-			      #The stop2 is inside the feature
-			      ($stop2 >= $_->{START1} &&
-			       $stop2 <= $_->{STOP1}) ||
-			      #The start2 and stop2 encompass the feature
-			      ($start2 <= $_->{START1} &&
-			       $stop2 >= $_->{STOP1}))) ||
-				(exists($_->{CHR2}) && defined($_->{CHR2}) &&
-				 $_->{CHR2} eq $chr2 &&
-				 ($search_range == 0 ||
-				  abs($start2-$_->{STOP2})  <= $search_range ||
-				  abs($start2-$_->{START2}) <= $search_range ||
-				  abs($stop2-$_->{STOP2})   <= $search_range ||
-				  abs($stop2-$_->{START2})  <= $search_range ||
-				  #The start2 is inside the feature
-				  ($start2 >= $_->{START2} &&
-				   $start2 <= $_->{STOP2}) ||
-				  #The stop2 is inside the feature
-				  ($stop2 >= $_->{START2} &&
-				   $stop2 <= $_->{STOP2}) ||
-				  #The start2 and stop2 encompass the feature
-				  ($start2 <= $_->{START2} &&
-				   $stop2 >= $_->{STOP2})))}
-			  @$features)
-	  {
-	    debug("Second coordinate inspection.");
-
-	    #Strip any distances which have previously been added by the above
-	    #loop or previous calls
-	    if(exists($feat->{DISTANCE}))
-	      {delete($feat->{DISTANCE})}
-	    if(exists($feat->{OTHERS}))
-	      {delete($feat->{OTHERS})}
-
-	    if($feat->{CHR1} eq $chr2)
-	      {
-		if(#The start2 is inside the feature
-		   ($start2 >= $feat->{START1} && $start2 <= $feat->{STOP1}) ||
-		   #The stop2 is inside the feature
-		   ($stop2 >= $feat->{START1} && $stop2 <= $feat->{STOP1}) ||
-		   #The start2 and stop2 encompass the feature
-		   ($start2 <= $feat->{START1} && $stop2 >= $feat->{STOP1}))
-		  {
-		    #See if there already exists a feature for this sample at
-		    #this distance
-		    if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
-		       $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} == 0)
-		      {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}
-			 ->{$feat->{ID}}=1}
-		    else
-		      {
-			delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
-			  if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
-			     exists($closest_feat2->{$feat->{SAMPLE}}
-				    ->{OTHERS}));
-			$closest_feat2->{$feat->{SAMPLE}} = copyFeature($feat);
-			$closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-			$closest_distance->{$feat->{SAMPLE}} = 0;
-		      }
-		  }
-
-		my $distance = (sort {$a <=> $b}
-				(abs($start2 - $feat->{STOP1}),
-				 abs($feat->{START1} - $stop2),
-				 abs($start2 - $feat->{START1}),
-				 abs($feat->{STOP1} - $stop2)))[0];
-
-		if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
-		   $distance < $closest_distance->{$feat->{SAMPLE}})
-		  {
-		    $closest_distance->{$feat->{SAMPLE}}          = $distance;
-		    $closest_feat2->{$feat->{SAMPLE}}             =
-		      copyFeature($feat);
-		    $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
-		    delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat2->{$feat->{SAMPLE}}->{OTHERS}));
-		  }
-		elsif($distance == $closest_distance->{$feat->{SAMPLE}})
-		  {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}
-		     = 1}
-	      }
-
-	    if(exists($feat->{CHR2}) && defined($feat->{CHR2}) &&
-	       $feat->{CHR2} eq $chr2)
-	      {
-		if(#The start2 is inside the feature
-		   ($start2 >= $feat->{START2} && $start2 <= $feat->{STOP2}) ||
-		   #The stop2 is inside the feature
-		   ($stop2 >= $feat->{START2} && $stop2 <= $feat->{STOP2}) ||
-		   #The start2 and stop2 encompass the feature
-		   ($start2 <= $feat->{START2} && $stop2 >= $feat->{STOP2}))
-		  {
-		    #See if there already exists a feature for this sample at
-		    #this distance
-		    if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
-		       $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} == 0)
-		      {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}
-			 ->{$feat->{ID}} = 1}
-		    else
-		      {
-			delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
-			  if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
-			     exists($closest_feat2->{$feat->{SAMPLE}}
-				    ->{OTHERS}));
-			$closest_feat2->{$feat->{SAMPLE}} = copyFeature($feat);
-			$closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-			$closest_distance->{$feat->{SAMPLE}} = 0;
-		      }
-		  }
-
-		my $distance = (sort {$a <=> $b}
-				(abs($start2 - $feat->{STOP2}),
-				 abs($feat->{START2} - $stop2),
-				 abs($start2 - $feat->{START2}),
-				 abs($feat->{STOP2} - $stop2)))[0];
-
-
-		if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
-		   $distance < $closest_distance->{$feat->{SAMPLE}})
-		  {
-		    $closest_distance->{$feat->{SAMPLE}} = $distance;
-		    $closest_feat2->{$feat->{SAMPLE}}    = copyFeature($feat);
-		    $closest_feat2->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
-		    delete($closest_feat2->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat2->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat2->{$feat->{SAMPLE}}->{OTHERS}));
-		  }
-		elsif($distance == $closest_distance->{$feat->{SAMPLE}})
-		  {$closest_feat2->{$feat->{SAMPLE}}->{OTHERS}->{$feat->{ID}}
-		     = 1}
-	      }
-	  }
-      }
-  }
-
 #Assumes all starts and stops (data and features) are sorted numerically.
 #This means that upstream and downstream cannot be determined.
 sub getClosestFeature
@@ -3169,6 +2976,29 @@ sub getClosestFeature
       }
 
     debug("Value of chr1: $chr1 start1: [$start1].");
+
+    #Merge the outputs of equidistance features into a value in the hash keyed
+    #on COMB
+    foreach my $closest_hash ($closest_feat,$closest_feat_right,
+			      $closest_feat_left)
+      {
+	foreach my $samp (keys(%{$closest_hash}))
+	  {
+	    my $fh  = $closest_feat->{$samp};
+	    my $str = '';
+	    my @vals = split(/\t/,$fh->{OUT},-1);
+	    if(exists($fh->{OTHERS}) && scalar(@{$fh->{OTHERS}}))
+	      {
+		foreach my $fh2 (@{$fh->{OTHERS}})
+		  {
+		    my @newvals = split(/\t/,$fh2->{OUT},-1);
+		    for(my $i = 0;$i < scalar(@vals);$i++)
+		      {$vals[$i] .= ",$newvals[$i]"}
+		  }
+	      }
+	    $fh->{COMB} = join("\t",@vals);
+	  }
+      }
 
 #    warning("No valid features found for input coordinates [$chr1 $start1 ",
 #	    "$stop1]!") if(scalar(keys(%$closest_feat)) == 0);
