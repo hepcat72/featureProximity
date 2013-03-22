@@ -577,7 +577,8 @@ if(scalar(grep {$_ ne 'any'} @$search_streams) ||
 	  "correctness.") if(scalar(@untested_orients));
   }
 
-my @bad_orients = grep {$_ !~ /^(an|p|m|\+|-|s|o|aw|t)/i} @feat_orientations;
+my @bad_orients = grep {$_ !~ /^(an|p|m|\+|-|s|o|aw|t|u|d)/i}
+  @feat_orientations;
 if(scalar(@bad_orients))
   {
     error("Invalid feature orientation(s) supplied via -t: [",
