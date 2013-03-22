@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '3.0';
+my $software_version_number = '3.1';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -503,14 +503,102 @@ if(scalar(grep {$_ !~ /^\d+$/} @data_out_cols))
 
 if(scalar(grep {$_ !~ /^\d+$/} @feat_out_cols))
   {
-    error("Invalid out column number(s) (-M): [",
+    error("Invalid out column number(s) (-w): [",
 	  join(',',grep {$_ !~ /^\d+$/} @feat_out_cols),
-	  "] for input data file (-i).");
+	  "] for feature file (-f).");
     quit(17);
   }
 
+if(scalar(grep {$_ !~ /^\d+$/} @data_strand_cols))
+  {
+    error("Invalid strand column number(s) (-t): [",
+	  join(',',grep {$_ !~ /^\d+$/} @data_strand_cols),
+	  "] for input data file (-i).");
+    quit(18);
+  }
 
+if(scalar(grep {$_ !~ /^\d+$/} @feat_strand_cols))
+  {
+    error("Invalid out column number(s) (-n): [",
+	  join(',',grep {$_ !~ /^\d+$/} @feat_out_cols),
+	  "] for feature file (-f).");
+    quit(19);
+  }
 
+if((scalar(@data_strand_cols) &&
+    scalar(@data_chr1_cols) != scalar(@data_strand_cols)) ||
+   (scalar(@feat_strand_cols) &&
+    scalar(@feat_chr1_cols) != scalar(@feat_strand_cols)))
+  {
+    error("The number of seq-id and strand column numbers for the input ",
+	  "data file (",join('/',(scalar(@data_chr1_cols),
+				  scalar(@data_strand_cols))),
+	  ") and feature file (",join('/',(scalar(@feat_chr1_cols),
+					   scalar(@feat_strand_cols))),
+	  ") must be the same.");
+    quit(20);
+  }
+
+if(($search_upstream || $search_downstream) && scalar(@data_strand_cols) == 0)
+  {
+    error("--search-upstream or --search-downstream requires -t.");
+    quit(21);
+  }
+
+my $search_streams = [];
+push(@$search_streams,'any')  unless($search_upstream || $search_downstream ||
+				     $search_overlap);
+push(@$search_streams,'up')   if($search_upstream);
+push(@$search_streams,'down') if($search_downstream);
+push(@$search_streams,'over') if($search_overlap);
+
+my $feat_orients = [];
+push(@$feat_orients,'any')    if(scalar(@feat_orientations) == 0 ||
+				 scalar(grep {/^an/i} @feat_orientations));
+push(@$feat_orients,'+')      if(scalar(grep {/^(p|\+)/i} @feat_orientations));
+push(@$feat_orients,'-')      if(scalar(grep {/^(m|-)/i} @feat_orientations));
+push(@$feat_orients,'away')   if(scalar(grep {/^(aw|u)/i} @feat_orientations));
+push(@$feat_orients,'toward') if(scalar(grep {/^(t|d)/i} @feat_orientations));
+push(@$feat_orients,'same')   if(scalar(grep {/^s/i} @feat_orientations));
+push(@$feat_orients,'opp')    if(scalar(grep {/^o/i} @feat_orientations));
+
+if(scalar(grep {$_ ne 'any'} @$search_streams) ||
+   scalar(grep {$_ ne 'any' && $_ ne 'away'} @$feat_orients))
+  {
+    my @untested_streams = grep {$_ ne 'any'} @$search_streams;
+    error("The validity of the output using the -u -v, or -d options (e.g. ",
+	  join(',',@untested_streams),") has not been tested.  Use at your ",
+	  "own risk.  It is highly recommended that you check the output for ",
+	  "correctness.") if(scalar(@untested_streams));
+    my @untested_orients = grep {$_ ne 'any' && $_ ne 'away'} @$feat_orients;
+    error("The validity of the output using the -t option with these values [",
+	  join(',',@untested_orients),"] has not been tested.  Use at your ",
+	  "own risk.  It is highly recommended that you check the output for ",
+	  "correctness.") if(scalar(@untested_orients));
+  }
+
+my @bad_orients = grep {$_ !~ /^(an|p|m|\+|-|s|o|aw|t)/i} @feat_orientations;
+if(scalar(@bad_orients))
+  {
+    error("Invalid feature orientation(s) supplied via -t: [",
+	  join(' ',@bad_orients),"].");
+    quit(22);
+  }
+
+if(scalar(grep {/\+|-|away|toward/} @$feat_orients) &&
+   scalar(@feat_strand_cols) == 0)
+  {
+    error("-n is required when -t is 'plus', '+', 'minus', '-', 'away', or ",
+	  "'toward'.");
+    quit(23);
+  }
+
+if(scalar(grep {/same|opp/} @$feat_orients) &&
+   (scalar(@feat_strand_cols) == 0 || scalar(@data_strand_cols) == 0))
+  {
+    error("-n and -p are both required when -t is 'same' or 'opposite'.");
+    quit(24);
+  }
 
 #If output is going to STDOUT instead of output files with different extensions
 #or if STDOUT was redirected, output run info once
@@ -537,6 +625,7 @@ my @feat_out_inds     = map {$_ - 1} @feat_out_cols;
 my @feat_chr1_inds    = map {$_ - 1} @feat_chr1_cols;
 my @feat_start1_inds  = map {$_ - 1} @feat_start1_cols;
 my @feat_end1_inds    = map {$_ - 1} @feat_end1_cols;
+my @feat_strand_inds  = map {$_ - 1} @feat_strand_cols;
 my $multiple_samples  = ($feat_sample_col ne '' && $feat_sample_col != 0);
 my($feat_sample_ind);
 $feat_sample_ind = $feat_sample_col - 1 if($multiple_samples);
@@ -546,6 +635,7 @@ my @data_chr1_inds    = map {$_ - 1} @data_chr1_cols;
 my @data_start1_inds  = map {$_ - 1} @data_start1_cols;
 my @data_end1_inds    = map {$_ - 1} @data_end1_cols;
 my @data_out_inds     = map {$_ - 1} @data_out_cols;
+my @data_strand_inds  = map {$_ - 1} @data_strand_cols;
 
 #Keep track of whether we will need to pad the feature out columns to
 #ensure a consistent number of columns.  Note, if the user supplied specific
@@ -683,7 +773,8 @@ foreach my $input_file_set (@input_files)
 		#Skip rows that don't have enough columns
 		if(scalar(grep {defined($_) && $#cols < $_}
 			  (@feat_out_inds,$feat_sample_ind,@feat_chr1_inds,
-			   @feat_start1_inds,@feat_end1_inds)))
+			   @feat_start1_inds,@feat_end1_inds,
+			   @feat_strand_inds)))
 		  {
 		    if(/\t/ && $_ !~ /^\s*#/)
 		      {warning("Line [$line_num] of feature file ",
@@ -733,6 +824,9 @@ foreach my $input_file_set (@input_files)
 		      @cols[$feat_chr1_inds[$f_ind],
 			    $feat_start1_inds[$f_ind],
 			    $feat_end1_inds[$f_ind]];
+		    my($feat_strand);
+		    if(scalar(@feat_strand_inds))
+		      {$feat_strand = $cols[$feat_strand_inds[$f_ind]]}
 
 		    #If both coordinates are in the same column, split on non-
 		    #nums
@@ -848,25 +942,47 @@ foreach my $input_file_set (@input_files)
 			next;
 		      }
 
+		    debug("FEAT STRAND BEFORE: [$feat_strand].")
+		      if($DEBUG > 1);
+		    if(scalar(@feat_strand_inds))
+		      {
+			if($feat_strand !~ /(\+|-|plus|minus|\d|comp|fpr|rev)/)
+			  {
+			    error("Invalid feature strand: [$feat_strand] ",
+				  "in column [$feat_strand_cols[$f_ind]] on ",
+				  "line [$line_num] of feature file ",
+				  "[$current_feature_file].  Skipping.");
+			    next;
+			  }
+			elsif($feat_strand =~ /-|minus|\dc|comp|rev/)
+			  {$feat_strand = '-'}
+			elsif($feat_strand =~ /(\+|plus|\d|for)/)
+			  {$feat_strand = '+'}
+			else
+			  {
+			    error("Unable to parse feature strand: ",
+				  "[$feat_strand] in column ",
+				  "[$feat_strand_cols[$f_ind]] on line ",
+				  "[$line_num] of feature file ",
+				  "[$current_feature_file].  Skipping.");
+			    next;
+			  }
+		      }
+		    else
+		      {$feat_strand = ''}
+		    debug("FEAT STRAND AFTER: [$feat_strand].")
+		      if($DEBUG > 1);
+
 		    #Sometimes features like genes may have redundant entries.
 		    #For example, when you take the genes in the human genome
 		    #and grab the smallest and largest coordinates, many splice
 		    #variants will yield the same "feature".  Here, we check
 		    #for features that are indistinguishable
 		    if(exists($redund_check->{$feat_sample}) &&
-		       exists($redund_check->{$feat_sample}->{$feat_chr1}) &&
-		       exists($redund_check->{$feat_sample}->{$feat_chr1}
-			      ->{$feat_start1}) &&
-		       exists($redund_check->{$feat_sample}->{$feat_chr1}
-			      ->{$feat_start1}->{$feat_end1}) &&
-		       exists($redund_check->{$feat_sample}
-			      ->{$feat_chr1}->{$feat_start1}->{$feat_end1}
-			      ->{$feat_out}))
+		       exists($redund_check->{$feat_sample}->{$feat_out}))
 		      {
 			warning("Skipping redundant feature found in feature ",
-				"file: [$current_feature_file]: [",
-				"$feat_sample,$feat_chr1,$feat_start1,",
-				"$feat_end1,$feat_out].");
+				"file: [$current_feature_file]: [$feat_out].");
 			next;
 		      }
 
@@ -885,6 +1001,7 @@ foreach my $input_file_set (@input_files)
 			  CHR1   => $feat_chr1,
 			  START1 => $feat_start1,
 			  STOP1  => $feat_end1,
+			  STRAND => $feat_strand,
 			  OUT    => $feat_out,
 			  COLS   => $feat_cols});
 
@@ -897,8 +1014,7 @@ foreach my $input_file_set (@input_files)
 
 		    #Record the feature in the redundancy hash to help
 		    #eliminate duplicates.
-		    $redund_check->{$feat_sample}->{$feat_chr1}->{$feat_start1}
-		      ->{$feat_end1}->{$feat_out} = 1;
+		    $redund_check->{$feat_sample}->{$feat_out} = 1;
 		  }
 
 		$sample_hash->{$current_feature_file}->{$feat_sample} = 1
@@ -1144,13 +1260,13 @@ foreach my $input_file_set (@input_files)
 	  {verbose('[',($input_file eq '-' ? $outfile_stub : $input_file),'] ',
 		   'Opened input file.')}
 
-	my $print_header  = (defined($outfile_suffix) || scalar(@outdirs) ||
-			     $first_loop);
-	$first_loop       = 0;
-	my $line_num      = 0;
-	my $verbose_freq  = 100;
-	my $max_data_cols = 0;
-	my @data_header   = ();
+	my $print_header           = (defined($outfile_suffix) ||
+				      scalar(@outdirs) || $first_loop);
+	$first_loop                = 0;
+	my $line_num               = 0;
+	my $verbose_freq           = 100;
+	my $max_data_cols          = 0;
+	my @data_header            = ();
 	my $inconsistency_reported = 0;
 
 	#For each line in the current input file
@@ -1170,7 +1286,7 @@ foreach my $input_file_set (@input_files)
 
 	    #Skip rows that don't have enough columns
 	    if(scalar(grep {defined($_) && $#cols < $_}
-		      (@data_out_inds,@data_chr1_inds,
+		      (@data_out_inds,@data_chr1_inds,@data_strand_inds,
 		       @data_start1_inds,@data_end1_inds)))
 	      {
 		#Only print the warning about too few columns if this line is
@@ -1252,8 +1368,8 @@ foreach my $input_file_set (@input_files)
 			    join("\t",@cols[@data_out_inds]) :
 			    join("\t",@cols));
 
-	    my @closest_feature_hashes = ();
-	    my($closest_distance);
+	    my $closest_feature_hashes = {};
+	    #closest_feature_hashes->{$search_stream}->{$feat_orient}->[data_coord_set_index]->{sample}
 
 	    for(my $coord_ind = 0;
 		$coord_ind < scalar(@data_start1_inds);
@@ -1263,6 +1379,9 @@ foreach my $input_file_set (@input_files)
 		  @cols[$data_chr1_inds[$coord_ind],
 			$data_start1_inds[$coord_ind],
 			$data_end1_inds[$coord_ind]];
+		my($data_strand);
+		if(scalar(@data_strand_inds))
+		  {$data_strand = $cols[$data_strand_inds[$coord_ind]]}
 
 		#If both coordinates are in the same column, split on non-nums
 		if($data_start1_inds[$coord_ind] == $data_end1_inds[$coord_ind]
@@ -1325,7 +1444,11 @@ foreach my $input_file_set (@input_files)
 			error("Unable to parse start1 and end1 of input data ",
 			      "on line [$line_num] of input data file ",
 			      "[$input_file].  Skipping.");
-			push(@closest_feature_hashes,{});
+			#Put a place-holder in for no result for this sample
+			foreach my $search_stream (@$search_streams)
+			  {foreach my $feat_orient (@$feat_orients)
+			     {push(@{$closest_feature_hashes->{$search_stream}
+				       ->{$feat_orient}},{})}}
 			next;
 		      }
 		  }
@@ -1346,7 +1469,11 @@ foreach my $input_file_set (@input_files)
 			  "in column [$data_start1_cols[$coord_ind]] on line ",
 			  "[$line_num] of input file [$input_file].  ",
 			  "Skipping.") if($data_start1 ne '');
-		    push(@closest_feature_hashes,{});
+		    #Put a place-holder in for no result for this sample
+		    foreach my $search_stream (@$search_streams)
+		      {foreach my $feat_orient (@$feat_orients)
+			 {push(@{$closest_feature_hashes->{$search_stream}
+				   ->{$feat_orient}},{})}}
 		    next;
 		  }
 
@@ -1365,10 +1492,14 @@ foreach my $input_file_set (@input_files)
 		    error("Invalid end1 coordinate: [$data_end1] ",
 			  "in column [$data_end1_cols[$coord_ind]] on line ",
 			  "[$line_num] of input file ",
-			  "[$current_feature_file].  Start1 was ",
+			  "[$input_file].  Start1 was ",
 			  "[$data_start1].  Skipping.")
 		      if($data_end1 ne '');
-		    push(@closest_feature_hashes,{});
+		    #Put a place-holder in for no result for this sample
+		    foreach my $search_stream (@$search_streams)
+		      {foreach my $feat_orient (@$feat_orients)
+			 {push(@{$closest_feature_hashes->{$search_stream}
+				   ->{$feat_orient}},{})}}
 		    next;
 		  }
 
@@ -1377,10 +1508,51 @@ foreach my $input_file_set (@input_files)
 		    error("Invalid chromosome: [$data_chr1] ",
 			  "in column [$data_chr1_cols[$coord_ind]] on line ",
 			  "[$line_num] of input file ",
-			  "[$current_feature_file].  Skipping.");
-		    push(@closest_feature_hashes,{});
+			  "[$input_file].  Skipping.");
+		    #Put a place-holder in for no result for this sample
+		    foreach my $search_stream (@$search_streams)
+		      {foreach my $feat_orient (@$feat_orients)
+			 {push(@{$closest_feature_hashes->{$search_stream}
+				   ->{$feat_orient}},{})}}
 		    next;
 		  }
+
+		if(scalar(@data_strand_inds))
+		  {
+		    if($data_strand !~ /(\+|-|plus|minus|\d|comp|fpr|rev)/)
+		      {
+			error("Invalid strand: [$data_strand] ",
+			      "in column [$data_strand_cols[$coord_ind]] on ",
+			      "line [$line_num] of input file ",
+			      "[$input_file].  Skipping.");
+			#Put a place-holder in for no result for this sample
+			foreach my $search_stream (@$search_streams)
+			  {foreach my $feat_orient (@$feat_orients)
+			     {push(@{$closest_feature_hashes->{$search_stream}
+				       ->{$feat_orient}},{})}}
+			next;
+		      }
+		    elsif($data_strand =~ /-|minus|\dc|comp|rev/)
+		      {$data_strand = '-'}
+		    elsif($data_strand =~ /(\+|plus|\d|for)/)
+		      {$data_strand = '+'}
+		    else
+		      {
+			error("Unable to parse strand: ",
+			      "[$data_strand] in column ",
+			      "[$data_strand_cols[$coord_ind]] on line ",
+			      "[$line_num] of input file ",
+			      "[$input_file].  Skipping.");
+			#Put a place-holder in for no result for this sample
+			foreach my $search_stream (@$search_streams)
+			  {foreach my $feat_orient (@$feat_orients)
+			     {push(@{$closest_feature_hashes->{$search_stream}
+				       ->{$feat_orient}},{})}}
+			next;
+		      }
+		  }
+		else
+		  {$data_strand = ''}
 
 		#Order the coordinates
 		($data_start1,$data_end1) = sort {$a <=> $b}
@@ -1416,14 +1588,9 @@ foreach my $input_file_set (@input_files)
 		my $region = ($magnitude ?
 			      (int($mycoord / $magnitude) * $magnitude) : 0);
 
-		debug("There are [",scalar(keys(%{$feature_hash->{$current_feature_file}->{$data_chr1}})),"] regions for chromosome [$data_chr1] in the feature hash for file [$current_feature_file].");
-
 		#First add the features in the region to the left
 		#(Note: if it's < 0, it won't exist in the hash)
 		$region -= $magnitude;
-
-		debug("There are [",(exists($feature_hash->{$current_feature_file}->{$data_chr1}->{$region}) ? scalar(@{$feature_hash->{$current_feature_file}->{$data_chr1}->{$region}}) : 0),"] features for chromosome/region [$data_chr1/$region] in the feature hash for file [$current_feature_file].");
-
 		if($magnitude &&
 		   exists($feature_hash->{$current_feature_file}
 			  ->{$data_chr1}) &&
@@ -1435,9 +1602,6 @@ foreach my $input_file_set (@input_files)
 
 		#Add the features in the region containing the base coordinate
 		$region += $magnitude;
-
-		debug("There are [",(exists($feature_hash->{$current_feature_file}->{$data_chr1}->{$region}) ? scalar(@{$feature_hash->{$current_feature_file}->{$data_chr1}->{$region}}) : 0),"] features for chromosome/region [$data_chr1/$region] in the feature hash for file [$current_feature_file].");
-
 		if(exists($feature_hash->{$current_feature_file}
 			  ->{$data_chr1}) &&
 		   exists($feature_hash->{$current_feature_file}
@@ -1448,9 +1612,6 @@ foreach my $input_file_set (@input_files)
 
 		#Add the features from the region to the right
 		$region += $magnitude;
-
-		debug("There are [",(exists($feature_hash->{$current_feature_file}->{$data_chr1}->{$region}) ? scalar(@{$feature_hash->{$current_feature_file}->{$data_chr1}->{$region}}) : 0),"] features for chromosome/region [$data_chr1/$region] in the feature hash for file [$current_feature_file].");
-
 		if($magnitude &&
 		   exists($feature_hash->{$current_feature_file}
 			  ->{$data_chr1}) &&
@@ -1460,40 +1621,40 @@ foreach my $input_file_set (@input_files)
 			@{$feature_hash->{$current_feature_file}
 			    ->{$data_chr1}->{$region}})}
 
-		#Get the closest feature to start1/end1
-		my $feature1 = getClosestFeature($data_chr1,
-						 $data_start1,
-						 $data_end1,
-						 $current_features,
-						 $current_sample_hash,
-						 $search_range);
-		#keys (of feature1):
-		#$sample
-		# SAMPLE
-		# CHR1
-		# START1
-		# STOP1
-		# OUT
-		# DISTANCE
-		# OTHERS (array of hashes containing all above keys)
-
-		#For each sample, determine the feature closest to all of the
-		#data coordinate pairs
-		foreach my $sample_id (keys(%$feature1))
+		foreach my $search_stream (@$search_streams)
 		  {
-		    if(!defined($closest_distance) ||
-		       !exists($closest_distance->{$sample_id}) ||
-		       $closest_distance->{$sample_id} >
-		       $feature1->{$sample_id}->{DISTANCE})
-		      {$closest_distance->{$sample_id} =
-			 $feature1->{$sample_id}->{DISTANCE}}
+		    foreach my $feat_orient (@$feat_orients)
+		      {
+			#Get the closest feature to start1/end1
+			my $feature1 = getClosestFeature($data_chr1,
+							 $data_start1,
+							 $data_end1,
+							 $data_strand,
+							 $current_features,
+							 $current_sample_hash,
+							 $search_range,
+							 $search_stream,
+							 $feat_orient);
+			#keys (of feature1):
+			#$sample
+			# SAMPLE
+			# CHR1
+			# START1
+			# STOP1
+			# STRAND
+			# OUT
+			# DISTANCE
+			# OTHERS (array of hashes containing all above keys)
+
+			push(@{$closest_feature_hashes->{$search_stream}
+				 ->{$feat_orient}},$feature1);
+
+			if(scalar(keys(%$feature1)))
+			  {debug("Found a feature for chr1/start1/stop1/",
+				 "$search_stream/$feat_orient")
+			     if($DEBUG > 1);}
+		      }
 		  }
-
-		push(@closest_feature_hashes,$feature1);
-
-		if(scalar(keys(%$feature1)))
-		  {debug("Found a feature for chr1/start1/stop1")
-		     if($DEBUG > 1);}
 	      }
 
 	    if($print_header)
@@ -1539,7 +1700,7 @@ foreach my $input_file_set (@input_files)
 		#    Smpl-$s-FeatDist$c
 		#    For each feature out column $f in the feature data...
 		#      Smpl-$s-ftcol($f)$c
-		print(join("\t",@data_header),"\t",
+		print('#',join("\t",@data_header),"\t",
 
 		      #Join together columns associated with all the sets of
 		      #coordinates in the input file
@@ -1556,11 +1717,42 @@ foreach my $input_file_set (@input_files)
 			       @{$feat_headers->{$current_feature_file}};
 			     my $map_result = '';
 
+			     #For each search_stream
+			     foreach my $search_stream (@$search_streams)
+			       {
+				 foreach my $feat_orient (@$feat_orients)
+				   {
+				     ##Label column headers with search stream
+				     ##and feature orientation
+
+				     my $or = '';
+				     #If there are multiple search streams or
+				     #the search stream is not the default
+				     #value, annotate the column header with
+				     #the stream
+				     if(scalar(@$search_streams) > 1 ||
+				        $search_streams->[0] ne 'any')
+				       {$or = "{$search_stream"}
+				     #If a value was assigned above, append a
+				     #feature orientation preceded by a comma
+				     #and followed by a closing curly
+				     if($or ne '')
+				       {
+					 if(scalar(@$feat_orients) > 1 ||
+					    $feat_orients->[0] ne 'any')
+					   {$or .= ",$feat_orient}"}
+					 else
+					   {$or .= "}"}
+				       }
+				     elsif(scalar(@$feat_orients) > 1 ||
+					   $feat_orients->[0] ne 'any')
+				       {$or = "{$feat_orient}"}
+
 			     #Add 2 columns before the feature columns when
 			     #there are multiple samples in the data
 			     if($multiple_samples)
-			       {$map_result = "NumSamples[$c]\t" .
-				  "SumDistances[$c]\t"}
+			       {$map_result = "NumSamples$c$or\t" .
+				  "SumDistances$c$or\t"}
 
 			     $map_result .=
 			       #Note, if no samples were indicated, it is
@@ -1576,11 +1768,16 @@ foreach my $input_file_set (@input_files)
 				      #Prepend a sample's feature distance
 				      #column header before each sample's set
 				      #of feature column headers
-				      $smpl . "Distance[$c]\t$smpl" .
-					join("[$c]\t$smpl",@feat_hdrs) . "[$c]"
+				      $smpl . "Distance$c$or\t$smpl" .
+					join("$c$or\t$smpl",@feat_hdrs) .
+					  "$c$or"
 				    }
 				    sort {$a cmp $b}
 				    keys(%$current_sample_hash));
+
+		                   }#foreach feat_orient
+			       }#foreach search_stream
+
 			     $map_result
 			   } (0..$#data_start1_cols)),
 
@@ -1611,6 +1808,11 @@ foreach my $input_file_set (@input_files)
 			 my $n          = $_; #Index into data_start1_cols
 			 my @map_result = ();
 
+			 #For each search_stream
+			 foreach my $search_stream (@$search_streams)
+			   {
+			     foreach my $feat_orient (@$feat_orients)
+			       {
 			 #If there are multiple samples, push on the number of
 			 #samples that have features close to the current data,
 			 #along with the sum of the distances each sample's
@@ -1620,12 +1822,17 @@ foreach my $input_file_set (@input_files)
 			   {
 			     my $sum_distances1 = 0;
 			     foreach my $sam
-			       (keys(%{$closest_feature_hashes[$n]}))
+			       (keys(%{$closest_feature_hashes
+					 ->{$search_stream}->{$feat_orient}
+					   ->[$n]}))
 				 {$sum_distances1 +=
-				    $closest_feature_hashes[$n]->{$sam}
-				      ->{DISTANCE}}
+				    $closest_feature_hashes->{$search_stream}
+				      ->{$feat_orient}->[$n]->{$sam}
+					->{DISTANCE}}
 			     push(@map_result,
-			       (scalar(keys(%{$closest_feature_hashes[$n]})),
+			       (scalar(keys(%{$closest_feature_hashes
+						->{$search_stream}
+						  ->{$feat_orient}->[$n]})),
 				$sum_distances1));
 			   }
 
@@ -1640,7 +1847,9 @@ foreach my $input_file_set (@input_files)
 			    my @ret = (); #This is the array we'll return
 
 			    #If there is not a closest feature
-			    if(!exists($closest_feature_hashes[$n]->{$s}))
+			    if(!exists($closest_feature_hashes
+				       ->{$search_stream}->{$feat_orient}->[$n]
+				       ->{$s}))
 			      {
 				#If feature out columns were provided, tack
 				#on empty values as place holders after the
@@ -1664,13 +1873,14 @@ foreach my $input_file_set (@input_files)
 				#include the sequence ID because it has to be
 				#the same as the input data's sequence ID
 				@ret =
-				  ($closest_feature_hashes[$n]->{$s}
+				  ($closest_feature_hashes->{$search_stream}
+				   ->{$feat_orient}->[$n]->{$s}
 				   ->{DISTANCE});
 
 				#Append out cols
 				push(@ret,
-				     $closest_feature_hashes[$n]->{$s}
-				     ->{COMB});
+				     $closest_feature_hashes->{$search_stream}
+				     ->{$feat_orient}->[$n]->{$s}->{COMB});
 			      }
 
 			    #The array returned
@@ -1678,6 +1888,8 @@ foreach my $input_file_set (@input_files)
 			  }
 			  sort {$a cmp $b}
 			  keys(%$current_sample_hash)));
+		               }#foreach feat_orient
+			   }#foreach search_stream
 
 			 #The array returned
 			 @map_result
@@ -2021,7 +2233,16 @@ end_print
                                    structural variants).
      -p|--data-strand-col OPTIONAL [0] The column number where the strand
                                    can be found in the data file (see -i).
-                                   Required if -u, -d, -v, or -t is supplied.
+                                   Note, this script is smart enough to
+                                   interpret strandedness when combined with
+                                   coordinate columns.  You may re-use a
+                                   coordinate column to supply here as the
+                                   strand column.  Here are example patterns
+                                   are matched: {+,-,plus,minus,1234c,
+                                   comp(1234..5678),for,rev}.  As long as a
+                                   portion of the string is matched, strand
+                                   will be saved.  Required if -u, -d, or -t is
+                                   supplied.
      -m|--data-out-cols   OPTIONAL [all] The column number(s) (separated by
                                    non-numbers (e.g. commas)) in the data file
                                    (see -i) that are to be used in the output
@@ -2062,7 +2283,15 @@ end_print
                                    structural variants).
      -n|--feat-strand-col OPTIONAL [0] The column number where the strand
                                    can be found in the data file (see -i).
-                                   Required if -t is supplied.
+                                   Note, this script is smart enough to
+                                   interpret strandedness when combined with
+                                   coordinate columns.  You may re-use a
+                                   coordinate column to supply here as the
+                                   strand column.  Here are example patterns
+                                   are matched: {+,-,plus,minus,1234c,
+                                   comp(1234..5678),for,rev}.  As long as a
+                                   portion of the string is matched, strand
+                                   will be saved.  Required if -t is supplied.
      -w|--feat-out-cols   OPTIONAL [all] The column number or numbers
                                    (separated by non-numbers (e.g. commas)) in
                                    the feature file (supplied with -f) that are
@@ -2086,26 +2315,31 @@ end_print
                                    Default behavior is to search upstream,
                                    downstream, and overlap and report the
                                    single closest feature (or multiple
-                                   equidistant features).  Requires -p.
+                                   equidistant features).
      -t|--feat-           OPTIONAL [any] {any,plus,minus,+,-,same,opposite,
-        orientation                away,toward} Report features in the supplied
-                                   orientation.  Default behavior is to report
-                                   the closest feature in any orientation and
-                                   does not require -p or -n.  Plus, minus, +,
-                                   and - do not require -p, but require -n.
+        orientation                away,toward,upstream,downstream} Report
+                                   features in the supplied orientation.
+                                   Default behavior is to report the closest
+                                   feature in any orientation and does not
+                                   require -p or -n.  Plus, minus, +, and - do
+                                   not require -p, but require -n.
                                    Orientations relative to the input data
-                                   coordinates (same, opposite, away, toward)
-                                   require -p and -n.  "Away" means that the
+                                   coordinates (same, opposite, away, toward,
+                                   upstream,downstream) require -p and -n.
+                                   "Away" (same as "upstream") means that the
                                    feature's upstream region is closest to the
-                                   input data coordinates.  "Toward" means that
-                                   the feature's downstream region is closest.
-                                   You may supply multiple orientations
-                                   separated by non-alphanumeric (alphanumeric
-                                   includes '_') characters.  Each orientation
-                                   will cause multuple sets of feature columns
-                                   (specified by -w) to be reported.  This is
-                                   compounded by the multiple column sets
-                                   generated by -u, -d, and -v.
+                                   input data coordinates.  "Toward" (same as
+                                   "downstream") means that the feature's
+                                   downstream region is closest.  If there is
+                                   any overlap, the feature is not considered
+                                   either 'away' or 'toward'.  You may supply
+                                   multiple orientations separated by non-
+                                   alphanumeric (alphanumeric includes '_')
+                                   characters.  Each orientation will cause
+                                   multuple sets of feature columns (specified
+                                   by -w) to be reported.  This is compounded
+                                   by the multiple column sets generated by -u,
+                                   -d, and -v.
      -o|--outfile-suffix  OPTIONAL [nothing] This suffix is added to the input
                                    file names to use as output files.
                                    Redirecting a file into this script will
@@ -2785,9 +3019,12 @@ sub getClosestFeature
     my $chr1                   = $_[0];
     my $start1                 = $_[1];
     my $stop1                  = $_[2];
-    my $features               = $_[3];
-    my $num_samples            = scalar(keys(%{$_[4]}));
-    my $search_range           = $_[5];
+    my $strand                 = $_[3];
+    my $features               = $_[4];
+    my $num_samples            = scalar(keys(%{$_[5]}));
+    my $search_range           = $_[6];
+    my $search_stream          = $_[7]; #any,up,down,over
+    my $feat_orient            = $_[8]; #+,-,same,opp,away,toward
 
     my $closest_feat           = {};
     my $closest_distance       = {};
@@ -2795,6 +3032,12 @@ sub getClosestFeature
     my $closest_feat_right     = {};
     my $closest_distance_left  = {};
     my $closest_distance_right = {};
+
+
+
+
+
+
 
     #Make sure chromosome naming conventions are the same between the files
     my $num_inspected = scalar(grep {$_->{CHR1} eq $chr1} @$features);
@@ -2833,7 +3076,81 @@ sub getClosestFeature
 	$num_inspected++;
 	debug("Inspecting [$chr1 $start1 $stop1] with [$feat->{CHR1} ",
 	      "$feat->{START1} $feat->{STOP1}].")
-	  if($DEBUG > 1);;
+	  if($DEBUG > 1);
+
+	if(($feat_orient eq 'same' && $feat->{STRAND} ne $strand) ||
+	   ($feat_orient eq 'opp'  && $feat->{STRAND} eq $strand))
+	  {debug();next}
+	elsif(($feat_orient eq '+' && $feat->{STRAND} ne '+') ||
+	      ($feat_orient eq '-' && $feat->{STRAND} ne '-'))
+	  {debug();next}
+	elsif($search_stream ne 'any')
+	  {
+	    #Overlap
+	    if($search_stream eq 'over' &&
+	       !(($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
+		 ($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
+		 ($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
+	      {debug();next}
+	    #Upstream/downstream
+	    elsif($search_stream eq 'up' || $search_stream eq 'down')
+	      {
+		if($strand eq '+')
+		  {
+		    if($search_stream eq 'up' && $feat->{STOP1} >= $start1)
+		      {debug();next}
+		    elsif($search_stream eq 'down' &&
+			  $feat->{START1} <= $stop1)
+		      {debug();next}
+		  }
+		elsif($strand eq '-')
+		  {
+		    if($search_stream eq 'down' && $feat->{STOP1} >= $start1)
+		      {debug();next}
+		    elsif($search_stream eq 'up' && $feat->{START1} <= $stop1)
+		      {debug();next}
+		  }
+		else
+		  {
+		    error("Invalid strand value: [$strand].");
+		    next;
+		  }
+	      }
+	  }
+
+	#Away/toward
+	my $side = $feat->{START1} < $start1 ? 'left' : 'right';
+	if($feat_orient eq 'away')
+	  {
+	    #If there's overlap, it's not 'away'
+	    if((($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
+		($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
+		($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
+	      {debug();next}
+
+	    #Away: (side = left && feat strand = -) OR
+	    #      (side = right && feat strand = +)
+	    if(($feat->{STRAND} eq '+' && $side eq 'left') ||
+	       ($feat->{STRAND} eq '-' && $side eq 'right'))
+	      {debug();next}
+	  }
+	elsif($feat_orient eq 'toward')
+	  {
+	    #If there's overlap, it's not 'toward'
+	    if((($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
+		($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
+		($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
+	      {debug();next}
+
+	    #Toward: (side = left && feat strand = +) OR
+	    #        (side = right && feat strand = -)
+
+	    if(($feat->{STRAND} eq '+' && $side eq 'right') ||
+	       ($feat->{STRAND} eq '-' && $side eq 'left'))
+	      {debug();next}
+	  }
+
+	debug("Inspecting: $search_stream,$feat_orient\nDATA: $chr1,$start1,$stop1,$strand\nFEAT: $feat->{CHR1},$feat->{START1},$feat->{STOP1},$feat->{STRAND}");
 
 	#Strip any distances which have previously been added by previous calls
 	if(exists($feat->{DISTANCE}))
@@ -2841,137 +3158,125 @@ sub getClosestFeature
 	if(exists($feat->{OTHERS}))
 	  {delete($feat->{OTHERS})}
 
-	#If the chromosome of the feature is the same as the chromosome sent in
-	if($feat->{CHR1} eq $chr1)
+	#Handle overlap first
+	if(#The start1 is inside the feature
+	   ($start1 >= $feat->{START1} && $start1 <= $feat->{STOP1}) ||
+	   #The stop1 is inside the feature
+	   ($stop1 >= $feat->{START1} && $stop1 <= $feat->{STOP1}) ||
+	   #The start1 and stop1 encompass the feature
+	   ($start1 <= $feat->{START1} && $stop1 >= $feat->{STOP1}))
 	  {
-	    #Handle overlap first
-	    if(#The start1 is inside the feature
-	       ($start1 >= $feat->{START1} && $start1 <= $feat->{STOP1}) ||
-	       #The stop1 is inside the feature
-	       ($stop1 >= $feat->{START1} && $stop1 <= $feat->{STOP1}) ||
-	       #The start1 and stop1 encompass the feature
-	       ($start1 <= $feat->{START1} && $stop1 >= $feat->{STOP1}))
+	    #See if there already exists a feature for this sample at this
+	    #distance
+	    if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+	       $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} == 0)
 	      {
-		#See if there already exists a feature for this sample at this
-		#distance
-		if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-		   $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} == 0)
-		  {
-		    push(@{$closest_feat->{$feat->{SAMPLE}}->{OTHERS}},$feat);
-		    push(@{$closest_feat_left->{$feat->{SAMPLE}}->{OTHERS}},
-			 $feat);
-		    push(@{$closest_feat_right->{$feat->{SAMPLE}}->{OTHERS}},
-			 $feat);
-		  }
-		else
-		  {
-		    #Handle closest overall feature
-		    delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
-		    $closest_feat->{$feat->{SAMPLE}} = copyFeature($feat);
-		    $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		    $closest_distance->{$feat->{SAMPLE}} = 0;
-
-		    #Handle closest feature to the left
-		    delete($closest_feat_left->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat_left->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat_left->{$feat->{SAMPLE}}
-				->{OTHERS}));
-		    $closest_feat_left->{$feat->{SAMPLE}} = copyFeature($feat);
-		    $closest_feat_left->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		    $closest_distance_left->{$feat->{SAMPLE}} = 0;
-
-		    #Handle closest feature to the right
-		    delete($closest_feat_right->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat_right->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat_right->{$feat->{SAMPLE}}
-				->{OTHERS}));
-		    $closest_feat_right->{$feat->{SAMPLE}} =
-		      copyFeature($feat);
-		    $closest_feat_right->{$feat->{SAMPLE}}->{DISTANCE} = 0;
-		    $closest_distance_right->{$feat->{SAMPLE}} = 0;
-		  }
-		debug("Feature Overlaps.") if($DEBUG > 1);;
+		push(@{$closest_feat->{$feat->{SAMPLE}}->{OTHERS}},$feat);
+		push(@{$closest_feat_left->{$feat->{SAMPLE}}->{OTHERS}},
+		     $feat);
+		push(@{$closest_feat_right->{$feat->{SAMPLE}}->{OTHERS}},
+		     $feat);
 	      }
-
-	    #Determine how far away this feature is (shortest distance)
-	    my $distance = (sort {$a <=> $b}
-			    (abs($start1 - $feat->{STOP1}),
-			     abs($feat->{START1} - $stop1),
-			     abs($start1 - $feat->{START1}),
-			     abs($feat->{STOP1} - $stop1)))[0];
-
-	    debug("Feature is $distance away.") if($DEBUG > 1);
-
-	    #If either of the start or stop of the feature is less than the query start or stop, then it is "to the left", otherwise it's "to the
-	    #right".  This is beacause we handled overlap above and can ignore
-	    #that case.  After the loop, we will determine whether the feature
-	    #is "upstream" or "downstream" based on the order of the start and
-	    #stop coordinates.
-
-	    my $direction = $feat->{START1} < $start1 ? 'left' : 'right';
-
-	    if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
-	       $distance < $closest_distance->{$feat->{SAMPLE}})
+	    else
 	      {
-		$closest_distance->{$feat->{SAMPLE}} = $distance;
-		$closest_feat->{$feat->{SAMPLE}}     = copyFeature($feat);
-		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
+		#Handle closest overall feature
 		delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
 		  if(exists($closest_feat->{$feat->{SAMPLE}}) &&
 		     exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
-		debug("Feature is Closer.") if($DEBUG > 1);
+		$closest_feat->{$feat->{SAMPLE}} = copyFeature($feat);
+		$closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+		$closest_distance->{$feat->{SAMPLE}} = 0;
 
-		#The closest-overall feature is handled above and below I handle the closest feature "to the left" (i.e. the coordinates of the feature are less than the coordinates of the query.  We can't handle the upstream/downstream issue because the start is always less than the stop in the 
-		if($direction eq 'left')
-		  {
-		    $closest_distance_left->{$feat->{SAMPLE}} = $distance;
-		    $closest_feat_left->{$feat->{SAMPLE}}     =
-		      copyFeature($feat);
-		    $closest_feat_left->{$feat->{SAMPLE}}->{DISTANCE} =
-		      $distance;
-		    delete($closest_feat_left->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat_left->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat_left->{$feat->{SAMPLE}}
-				->{OTHERS}));
-		  }
-		else
-		  {
-		    $closest_distance_right->{$feat->{SAMPLE}} = $distance;
-		    $closest_feat_right->{$feat->{SAMPLE}}     =
-		      copyFeature($feat);
-		    $closest_feat_right->{$feat->{SAMPLE}}->{DISTANCE} =
-		      $distance;
-		    delete($closest_feat_right->{$feat->{SAMPLE}}->{OTHERS})
-		      if(exists($closest_feat_right->{$feat->{SAMPLE}}) &&
-			 exists($closest_feat_right->{$feat->{SAMPLE}}
-				->{OTHERS}));
-		  }
+		#Handle closest feature to the left
+		delete($closest_feat_left->{$feat->{SAMPLE}}->{OTHERS})
+		  if(exists($closest_feat_left->{$feat->{SAMPLE}}) &&
+		     exists($closest_feat_left->{$feat->{SAMPLE}}
+			    ->{OTHERS}));
+		$closest_feat_left->{$feat->{SAMPLE}} = copyFeature($feat);
+		$closest_feat_left->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+		$closest_distance_left->{$feat->{SAMPLE}} = 0;
 
-
-
-###Also need to change the way the feature file is read in so that if there are multiple pairs of starts and stops, they are put into the same data structure
-
-
-
+		#Handle closest feature to the right
+		delete($closest_feat_right->{$feat->{SAMPLE}}->{OTHERS})
+		  if(exists($closest_feat_right->{$feat->{SAMPLE}}) &&
+		     exists($closest_feat_right->{$feat->{SAMPLE}}
+			    ->{OTHERS}));
+		$closest_feat_right->{$feat->{SAMPLE}} =
+		  copyFeature($feat);
+		$closest_feat_right->{$feat->{SAMPLE}}->{DISTANCE} = 0;
+		$closest_distance_right->{$feat->{SAMPLE}} = 0;
 	      }
-	    elsif($distance == $closest_distance->{$feat->{SAMPLE}})
+	    debug("Feature Overlaps.") if($DEBUG > 1);;
+	  }
+
+	#Determine how far away this feature is (shortest distance)
+	my $distance = (sort {$a <=> $b}
+			(abs($start1 - $feat->{STOP1}),
+			 abs($feat->{START1} - $stop1),
+			 abs($start1 - $feat->{START1}),
+			 abs($feat->{STOP1} - $stop1)))[0];
+
+	debug("Feature is $distance away.") if($DEBUG > 1);
+	#If either of the start or stop of the feature is less than the query start or stop, then it is "to the left", otherwise it's "to the
+	#right".  This is beacause we handled overlap above and can ignore
+	#that case.  After the loop, we will determine whether the feature
+	#is "upstream" or "downstream" based on the order of the start and
+	#stop coordinates.
+
+	my $direction = $feat->{START1} < $start1 ? 'left' : 'right';
+
+	if(!exists($closest_distance->{$feat->{SAMPLE}}) ||
+	   $distance < $closest_distance->{$feat->{SAMPLE}})
+	  {
+	    $closest_distance->{$feat->{SAMPLE}} = $distance;
+	    $closest_feat->{$feat->{SAMPLE}}     = copyFeature($feat);
+	    $closest_feat->{$feat->{SAMPLE}}->{DISTANCE} = $distance;
+	    delete($closest_feat->{$feat->{SAMPLE}}->{OTHERS})
+	      if(exists($closest_feat->{$feat->{SAMPLE}}) &&
+		 exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
+	    debug("Feature is Closer.") if($DEBUG > 1);
+
+	    #The closest-overall feature is handled above and below I handle the closest feature "to the left" (i.e. the coordinates of the feature are less than the coordinates of the query.  We can't handle the upstream/downstream issue because the start is always less than the stop in the 
+	    if($direction eq 'left')
 	      {
-		push(@{$closest_feat->{$feat->{SAMPLE}}->{OTHERS}},$feat);
-
-		if($direction eq 'left' &&
-		   (!defined($closest_distance_left->{$feat->{SAMPLE}}) ||
-		    $distance == $closest_distance_left->{$feat->{SAMPLE}}))
-		  {push(@{$closest_feat_left->{$feat->{SAMPLE}}->{OTHERS}},
-			$feat)}
-		elsif($direction eq 'right' &&
-		      (!defined($closest_distance_right->{$feat->{SAMPLE}}) ||
-		       $distance ==
-		       $closest_distance_right->{$feat->{SAMPLE}}))
-		  {push(@{$closest_feat_right->{$feat->{SAMPLE}}->{OTHERS}},
-			$feat)}
+		$closest_distance_left->{$feat->{SAMPLE}} = $distance;
+		$closest_feat_left->{$feat->{SAMPLE}}     =
+		  copyFeature($feat);
+		$closest_feat_left->{$feat->{SAMPLE}}->{DISTANCE} =
+		  $distance;
+		delete($closest_feat_left->{$feat->{SAMPLE}}->{OTHERS})
+		  if(exists($closest_feat_left->{$feat->{SAMPLE}}) &&
+		     exists($closest_feat_left->{$feat->{SAMPLE}}
+			    ->{OTHERS}));
 	      }
+	    else
+	      {
+		$closest_distance_right->{$feat->{SAMPLE}} = $distance;
+		$closest_feat_right->{$feat->{SAMPLE}}     =
+		  copyFeature($feat);
+		$closest_feat_right->{$feat->{SAMPLE}}->{DISTANCE} =
+		  $distance;
+		delete($closest_feat_right->{$feat->{SAMPLE}}->{OTHERS})
+		  if(exists($closest_feat_right->{$feat->{SAMPLE}}) &&
+		     exists($closest_feat_right->{$feat->{SAMPLE}}
+			    ->{OTHERS}));
+	      }
+	  }
+	elsif($distance == $closest_distance->{$feat->{SAMPLE}})
+	  {
+	    push(@{$closest_feat->{$feat->{SAMPLE}}->{OTHERS}},$feat);
+
+	    if($direction eq 'left' &&
+	       (!defined($closest_distance_left->{$feat->{SAMPLE}}) ||
+		$distance == $closest_distance_left->{$feat->{SAMPLE}}))
+	      {push(@{$closest_feat_left->{$feat->{SAMPLE}}->{OTHERS}},
+		    $feat)}
+	    elsif($direction eq 'right' &&
+		  (!defined($closest_distance_right->{$feat->{SAMPLE}}) ||
+		   $distance ==
+		   $closest_distance_right->{$feat->{SAMPLE}}))
+	      {push(@{$closest_feat_right->{$feat->{SAMPLE}}->{OTHERS}},
+		    $feat)}
 	  }
       }
 
