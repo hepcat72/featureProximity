@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '3.2';
+my $software_version_number = '3.3';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -644,6 +644,10 @@ my @data_strand_inds  = map {$_ - 1} @data_strand_cols;
 #also only eventually be done if the number of columns is uneven.
 $pad_feat_outs = scalar(@feat_out_inds);
 
+#Keep track of the chromosome names to make sure they're in the same format in
+#both the input files and the feature files
+my $feat_chr_hash = {};
+
 #Keep track of the largest feature (to be added to the search range in order to
 #create a hash of feature regions to speed up the search).  The script will
 #jump to the regions nearest the input coordinates.
@@ -663,6 +667,10 @@ foreach my $input_file_set (@input_files)
     foreach my $input_file (@$input_file_set)
       {
 	my $file_num = 0;
+
+	#Keep track of the chromosome names to make sure they're in the same
+	#format in both the input files and the feature files
+	my $data_chr_hash = {};
 
 	##
 	## Determine the current feature file
@@ -828,6 +836,9 @@ foreach my $input_file_set (@input_files)
 		    my($feat_strand);
 		    if(scalar(@feat_strand_inds))
 		      {$feat_strand = $cols[$feat_strand_inds[$f_ind]]}
+
+		    #Keep track of the chromosome names
+		    $feat_chr_hash->{$current_feature_file}->{$feat_chr1} = 1;
 
 		    #If both coordinates are in the same column, split on non-
 		    #nums
@@ -1386,6 +1397,8 @@ foreach my $input_file_set (@input_files)
 		if(scalar(@data_strand_inds))
 		  {$data_strand = $cols[$data_strand_inds[$coord_ind]]}
 
+		$data_chr_hash->{$data_chr1} = 1;
+
 		#If both coordinates are in the same column, split on non-nums
 		if($data_start1_inds[$coord_ind] == $data_end1_inds[$coord_ind]
 		   && $data_start1 =~ /\D/)
@@ -1901,6 +1914,22 @@ foreach my $input_file_set (@input_files)
 	  }
 
 	close(INPUT);
+
+	#Now make sure that the format of the chromosome names is the same
+	#between the current feature file and the current input file
+	my @not_in_data = grep {!exists($data_chr_hash->{$_})}
+	  keys(%{$feat_chr_hash->{$current_feature_file}});
+	if(scalar(@not_in_data))
+	  {warning("These sequence IDs in the feature file ",
+		   "[$current_feature_file] were not found in the data file ",
+		   "[$input_file]: [",join(',',@not_in_data),"].")}
+	my @not_in_feat = grep {!exists($feat_chr_hash
+					->{$current_feature_file}->{$_})}
+	  keys(%$data_chr_hash);
+	if(scalar(@not_in_feat))
+	  {warning("These sequence IDs in the input file [$input_file] were ",
+		   "not found in the feature file [$current_feature_file]: [",
+		   join(',',@not_in_feat),"].")}
 
 	verbose('[',($input_file eq '-' ? $outfile_stub : $input_file),'] ',
 		'Input file done.  Time taken: [',scalar(markTime()),
@@ -3036,23 +3065,6 @@ sub getClosestFeature
     my $closest_distance_left  = {};
     my $closest_distance_right = {};
 
-
-
-
-
-
-
-    #Make sure chromosome naming conventions are the same between the files
-    my $num_inspected = scalar(grep {$_->{CHR1} eq $chr1} @$features);
-    unless($num_inspected)
-      {warning("None of the supplied [",scalar(@$features),"] features were ",
-	       "inspected for sequence: [$chr1].  Please check to make sure ",
-	       "that the sequence ID naming styles are the same between your ",
-	       "feature file and input file.",
-	       (scalar(@$features) ? "  Here is an example of one of the " .
-		"feature sequence IDs supplied: [$features->[0]->{CHR1}]." :
-		''))}
-
     #Note: It is assumed that features are sorted on the start1 coordinate and
     #that that start1 coordinate is always less than the stop1 coordinate)
     foreach my $feat (grep {(#The feature is on the same chromosome
@@ -3076,7 +3088,6 @@ sub getClosestFeature
 			       $stop1 >= $_->{STOP1})))}
 		      @$features)
       {
-	$num_inspected++;
 	debug("Inspecting [$chr1 $start1 $stop1] with [$feat->{CHR1} ",
 	      "$feat->{START1} $feat->{STOP1}].")
 	  if($DEBUG > 1);
