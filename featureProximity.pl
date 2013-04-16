@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '3.3';
+my $software_version_number = '3.4';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -1588,7 +1588,7 @@ foreach my $input_file_set (@input_files)
 		if($search_range >= 0 && $magnitude < $coord_size)
 		  {
 		    #Determine the new magnitude
-		    my $magnitude = (1 . ('0' x length($coord_size))) + 0;
+		    $magnitude = (1 . ('0' x length($coord_size))) + 0;
 		    #Resegment the hash
 		    $feature_hash->{$current_feature_file} =
 		      segmentHash($magnitude,
