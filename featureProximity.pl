@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '3.1';
+my $software_version_number = '3.2';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -1114,6 +1114,8 @@ foreach my $input_file_set (@input_files)
 	  {$magnitude = 0}
 
 	#Now segment the hash based on this magnitude
+	#Note: this changes the structure of the hash to have 2 more levels of
+	#keys (chromosome and region start coordinate)
 	$feature_hash->{$current_feature_file} =
 	  segmentHash($magnitude,
 		      $feature_hash->{$current_feature_file});
@@ -1577,7 +1579,7 @@ foreach my $input_file_set (@input_files)
 		    #Resegment the hash
 		    $feature_hash->{$current_feature_file} =
 		      segmentHash($magnitude,
-				  [map {values(%$_)}
+				  [map {my $val = $_;map {@$_} values(%$val)}
 				   values(%{$feature_hash
 					      ->{$current_feature_file}})]);
 		  }
@@ -3337,6 +3339,8 @@ sub segmentHash
   {
     my $magnitude = $_[0];
     my $feat_hash = $_[1]; #Actually an array of hashes
+
+    debug("In segmentHash.");
 
     if($magnitude !~ /^[01]0*$/)
       {
