@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '3.4';
+my $software_version_number = '3.5';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -108,8 +108,9 @@ my $GetOptHash =
    'd|search-downstream' => \$search_downstream,            #OPTIONAL [Off]
    'v|search-overlap'    => \$search_overlap,               #OPTIONAL [Off]
    't|feat-orientation=s'=> sub {push(@feat_orientations,   #OPTIONAL [any]
-                                      map {split(/\W+/,$_)} #any,away,toward,
-                                      sglob($_[1]))},       #same,opposite,+,-
+                                      map {split(/[^a-zA-Z_\-0-9]+/,$_)}
+                                      sglob($_[1]))},       #any,away,toward,
+                                                            #same,opposite,+,-
                                                             #plus,minus,both
    'o|outfile-suffix=s'  => \$outfile_suffix,               #OPTIONAL [undef]
    'outdir=s'            => sub {push(@outdirs,             #OPTIONAL
@@ -553,14 +554,43 @@ push(@$search_streams,'down') if($search_downstream);
 push(@$search_streams,'over') if($search_overlap);
 
 my $feat_orients = [];
-push(@$feat_orients,'any')    if(scalar(@feat_orientations) == 0 ||
-				 scalar(grep {/^an/i} @feat_orientations));
-push(@$feat_orients,'+')      if(scalar(grep {/^(p|\+)/i} @feat_orientations));
-push(@$feat_orients,'-')      if(scalar(grep {/^(m|-)/i} @feat_orientations));
-push(@$feat_orients,'away')   if(scalar(grep {/^(aw|u)/i} @feat_orientations));
-push(@$feat_orients,'toward') if(scalar(grep {/^(t|d)/i} @feat_orientations));
-push(@$feat_orients,'same')   if(scalar(grep {/^s/i} @feat_orientations));
-push(@$feat_orients,'opp')    if(scalar(grep {/^o/i} @feat_orientations));
+push(@$feat_orients,'any')         if(scalar(@feat_orientations) == 0 ||
+				      scalar(grep {/^an/i}
+					     @feat_orientations));
+push(@$feat_orients,'+')           if(scalar(grep {/^(p|\+)/i}
+					     @feat_orientations));
+push(@$feat_orients,'-')           if(scalar(grep {/^(m|-)/i}
+					     @feat_orientations));
+push(@$feat_orients,'away')        if(scalar(grep {/^(away|upstream)$/i}
+					     @feat_orientations));
+push(@$feat_orients,'toward')      if(scalar(grep {/^(toward|downstream)$/i}
+					     @feat_orientations));
+push(@$feat_orients,'away-over')   if(scalar(grep {/^(away_o|upstream_o)/i}
+					     @feat_orientations));
+push(@$feat_orients,'toward-over') if(scalar(grep {/^(toward_o|downstream_o)/i}
+					     @feat_orientations));
+push(@$feat_orients,'same')        if(scalar(grep {/^s/i} @feat_orientations));
+push(@$feat_orients,'opp')         if(scalar(grep {/^o/i} @feat_orientations));
+
+if(scalar(@feat_orientations) > scalar(@$feat_orients))
+  {
+    error("One or more of these feature orientations (-t) were invalid: [",
+	  join(',',@feat_orientations),"].");
+    usage(1);
+    quit(26);
+  }
+
+if(scalar(grep {$_ eq 'over'} @$search_streams) &&
+   scalar(grep {$_ eq 'away' || $_ eq 'toward'} @$feat_orients))
+  {
+    error("The -v flag (search for overlap of the input data) and -t ",
+	  "[away|toward|upstream|downstream] are incompatible.  A feature ",
+	  "can not both be overlapping and facing away or toward at the same ",
+	  "time.  To search for the closest feature that is for example ",
+	  "either facing away or overlapping (where overlapping would be ",
+	  "'closer'), use '-t away_or_over' and do not supply -u, -d, or -v.");
+    quit(25);
+  }
 
 if(scalar(grep {$_ ne 'any'} @$search_streams) ||
    scalar(grep {$_ ne 'any' && $_ ne 'away'} @$feat_orients))
@@ -570,7 +600,8 @@ if(scalar(grep {$_ ne 'any'} @$search_streams) ||
 	  join(',',@untested_streams),") has not been tested.  Use at your ",
 	  "own risk.  It is highly recommended that you check the output for ",
 	  "correctness.") if(scalar(@untested_streams));
-    my @untested_orients = grep {$_ ne 'any' && $_ ne 'away'} @$feat_orients;
+    my @untested_orients = grep {$_ ne 'any' && $_ ne 'away' && $_ ne 'toward'}
+      @$feat_orients;
     error("The validity of the output using the -t option with these values [",
 	  join(',',@untested_orients),"] has not been tested.  Use at your ",
 	  "own risk.  It is highly recommended that you check the output for ",
@@ -597,7 +628,8 @@ if(scalar(grep {/\+|-|away|toward/} @$feat_orients) &&
 if(scalar(grep {/same|opp/} @$feat_orients) &&
    (scalar(@feat_strand_cols) == 0 || scalar(@data_strand_cols) == 0))
   {
-    error("-n and -p are both required when -t is 'same' or 'opposite'.");
+    error("-n and -p are both required when -t is 'same' or 'opposite' [",
+	  join(",",@$feat_orients),"].");
     quit(24);
   }
 
@@ -743,7 +775,8 @@ foreach my $input_file_set (@input_files)
 	##
 
 	my $current_features = [];
-	unless(exists($feature_hash->{$current_feature_file}))
+	unless(exists($feature_hash->{$current_feature_file}) &&
+	       scalar(keys(%$feature_hash)))
 	  {
 	    #Open the feature file
 	    if(!open(FEAT,$current_feature_file))
@@ -1035,6 +1068,13 @@ foreach my $input_file_set (@input_files)
 
 	    close(FEAT);
 
+	    if(!$first_feat_recorded)
+	      {
+		error("No features were found in feature file: ",
+		      "[$current_feature_file].  Skipping.");
+		next;
+	      }
+
 	    #If we intend to pad rows with missing columns, check to see if
 	    #it's necessary, and issue a warning if that's the case
 	    if($pad_feat_outs && scalar(keys(%$feat_col_check)) > 1)
@@ -1115,6 +1155,12 @@ foreach my $input_file_set (@input_files)
 			 $outfile_stub : $current_feature_file),
 		    '] Closed feature file.  Time taken: [',scalar(markTime()),
 		    ' Seconds].');
+	  }
+	elsif(scalar($feature_hash->{$current_feature_file}) == 0)
+	  {
+	    warning("No features were parsed from feature file: ",
+		    "[$current_feature_file].  Skipping.");
+	    next;
 	  }
 
 	#Determine the order of magnitude larger than the largest range (add 0
@@ -2349,29 +2395,35 @@ end_print
                                    single closest feature (or multiple
                                    equidistant features).
      -t|--feat-           OPTIONAL [any] {any,plus,minus,+,-,same,opposite,
-        orientation                away,toward,upstream,downstream} Report
+        orientation                away,toward,upstream,downstream,
+                                   away_or_over,toward_or_over,
+                                   upstream_or_over,downstream_or_over} Report
                                    features in the supplied orientation.
                                    Default behavior is to report the closest
                                    feature in any orientation and does not
                                    require -p or -n.  Plus, minus, +, and - do
                                    not require -p, but require -n.
                                    Orientations relative to the input data
-                                   coordinates (same, opposite, away, toward,
-                                   upstream,downstream) require -p and -n.
+                                   coordinates (same, opposite, away*, toward*,
+                                   upstream*, downstream*) require -p and -n.
                                    "Away" (same as "upstream") means that the
-                                   feature's upstream region is closest to the
+                                   feature's upstream region is closer to the
                                    input data coordinates.  "Toward" (same as
                                    "downstream") means that the feature's
-                                   downstream region is closest.  If there is
+                                   downstream region is closer.  If there is
                                    any overlap, the feature is not considered
-                                   either 'away' or 'toward'.  You may supply
-                                   multiple orientations separated by non-
-                                   alphanumeric (alphanumeric includes '_')
-                                   characters.  Each orientation will cause
-                                   multuple sets of feature columns (specified
+                                   either 'away' or 'toward'.  To use away or
+                                   toward and still consider overlap (which
+                                   would be 'closer'), use away_or_over or
+                                   toward_or_over.  You may supply multiple
+                                   orientations separated by non-alphanumeric
+                                   (including '_') characters.  Each
+                                   orientation supplied here will cause
+                                   multiple sets of feature columns (specified
                                    by -w) to be reported.  This is compounded
                                    by the multiple column sets generated by -u,
-                                   -d, and -v.
+                                   -d, and -v.  Away* and toward* are not
+                                   compatible with -v.
      -o|--outfile-suffix  OPTIONAL [nothing] This suffix is added to the input
                                    file names to use as output files.
                                    Redirecting a file into this script will
@@ -3056,7 +3108,8 @@ sub getClosestFeature
     my $num_samples            = scalar(keys(%{$_[5]}));
     my $search_range           = $_[6];
     my $search_stream          = $_[7]; #any,up,down,over
-    my $feat_orient            = $_[8]; #+,-,same,opp,away,toward
+    my $feat_orient            = $_[8]; #+,-,same,opp,away,toward,away-over,
+                                        #toward-over
 
     my $closest_feat           = {};
     my $closest_distance       = {};
@@ -3106,8 +3159,9 @@ sub getClosestFeature
 		 ($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
 		 ($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
 	      {debug();next}
+
 	    #Upstream/downstream
-	    elsif($search_stream eq 'up' || $search_stream eq 'down')
+	    if($search_stream eq 'up' || $search_stream eq 'down')
 	      {
 		if($strand eq '+')
 		  {
@@ -3132,14 +3186,22 @@ sub getClosestFeature
 	      }
 	  }
 
+	#Determine which side the feature is on, relative to the plus strand
+	my $side = '';
+
+	#If it's not on either side, but rather is overlapping
+	if((($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
+	    ($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
+	    ($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
+	  {$side = 'over'}
+	else
+	  {$side = $feat->{START1} < $start1 ? 'left' : 'right'}
+
 	#Away/toward
-	my $side = $feat->{START1} < $start1 ? 'left' : 'right';
 	if($feat_orient eq 'away')
 	  {
-	    #If there's overlap, it's not 'away'
-	    if((($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
-		($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
-		($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
+	    #An overlapping feature cannot be facing away
+	    if($side eq 'over')
 	      {debug();next}
 
 	    #Away: (side = left && feat strand = -) OR
@@ -3150,15 +3212,28 @@ sub getClosestFeature
 	  }
 	elsif($feat_orient eq 'toward')
 	  {
-	    #If there's overlap, it's not 'toward'
-	    if((($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
-		($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
-		($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
+	    #An overlapping feature cannot be facing toward
+	    if($side eq 'over')
 	      {debug();next}
 
 	    #Toward: (side = left && feat strand = +) OR
 	    #        (side = right && feat strand = -)
-
+	    if(($feat->{STRAND} eq '+' && $side eq 'right') ||
+	       ($feat->{STRAND} eq '-' && $side eq 'left'))
+	      {debug();next}
+	  }
+	elsif($feat_orient eq 'away-over')
+	  {
+	    #Away: (side = left && feat strand = -) OR
+	    #      (side = right && feat strand = +)
+	    if(($feat->{STRAND} eq '+' && $side eq 'left') ||
+	       ($feat->{STRAND} eq '-' && $side eq 'right'))
+	      {debug();next}
+	  }
+	elsif($feat_orient eq 'toward-over')
+	  {
+	    #Toward: (side = left && feat strand = +) OR
+	    #        (side = right && feat strand = -)
 	    if(($feat->{STRAND} eq '+' && $side eq 'right') ||
 	       ($feat->{STRAND} eq '-' && $side eq 'left'))
 	      {debug();next}
@@ -3166,7 +3241,7 @@ sub getClosestFeature
 
 	debug("Inspecting: $search_stream,$feat_orient\nDATA: $chr1,$start1,$stop1,$strand\nFEAT: $feat->{CHR1},$feat->{START1},$feat->{STOP1},$feat->{STRAND}");
 
-	#Strip any distances which have previously been added by previous calls
+	#Strip any distances which have been added by previous calls
 	if(exists($feat->{DISTANCE}))
 	  {delete($feat->{DISTANCE})}
 	if(exists($feat->{OTHERS}))
@@ -3231,7 +3306,8 @@ sub getClosestFeature
 			 abs($feat->{STOP1} - $stop1)))[0];
 
 	debug("Feature is $distance away.") if($DEBUG > 1);
-	#If either of the start or stop of the feature is less than the query start or stop, then it is "to the left", otherwise it's "to the
+	#If either of the start or stop of the feature is less than the query
+	#start or stop, then it is "to the left", otherwise it's "to the
 	#right".  This is beacause we handled overlap above and can ignore
 	#that case.  After the loop, we will determine whether the feature
 	#is "upstream" or "downstream" based on the order of the start and
