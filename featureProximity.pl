@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '3.5';
+my $software_version_number = '3.7';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -46,7 +46,11 @@ my @data_strand_cols    = ();
 my @feat_strand_cols    = ();
 my $search_upstream     = 0;
 my $search_downstream   = 0;
+my $search_left         = 0;
+my $search_right        = 0;
 my $search_overlap      = 0;
+my $search_nonoverlap   = 0;
+my $search_any          = 0;
 my @feat_orientations   = ();
 
 my $search_range        = -1;
@@ -106,12 +110,16 @@ my $GetOptHash =
 				      sglob($_[1]))},       #  t supplied
    'u|search-upstream'   => \$search_upstream,              #OPTIONAL [Off]
    'd|search-downstream' => \$search_downstream,            #OPTIONAL [Off]
+   'l|search-left'       => \$search_left,                  #OPTIONAL [Off]
+   'g|search-right'      => \$search_right,                 #OPTIONAL [Off]
    'v|search-overlap'    => \$search_overlap,               #OPTIONAL [Off]
+   'x|search-nonoverlap' => \$search_nonoverlap,            #OPTIONAL [Off]
+   'z|search-any'        => \$search_any,                   #OPTIONAL [Off]
    't|feat-orientation=s'=> sub {push(@feat_orientations,   #OPTIONAL [any]
                                       map {split(/[^a-zA-Z_\-0-9]+/,$_)}
                                       sglob($_[1]))},       #any,away,toward,
                                                             #same,opposite,+,-
-                                                            #plus,minus,both
+                                                            #plus,minus
    'o|outfile-suffix=s'  => \$outfile_suffix,               #OPTIONAL [undef]
    'outdir=s'            => sub {push(@outdirs,             #OPTIONAL
 				      [sglob($_[1])])},
@@ -542,16 +550,23 @@ if((scalar(@data_strand_cols) &&
 
 if(($search_upstream || $search_downstream) && scalar(@data_strand_cols) == 0)
   {
-    error("--search-upstream or --search-downstream requires -t.");
+    error("--search-upstream or --search-downstream requires -p.");
     quit(21);
   }
 
 my $search_streams = [];
-push(@$search_streams,'any')  unless($search_upstream || $search_downstream ||
-				     $search_overlap);
-push(@$search_streams,'up')   if($search_upstream);
-push(@$search_streams,'down') if($search_downstream);
-push(@$search_streams,'over') if($search_overlap);
+push(@$search_streams,'any')     unless($search_upstream ||
+				        $search_downstream ||
+				        $search_overlap ||
+				        $search_nonoverlap ||
+					$search_any);
+push(@$search_streams,'any')     if($search_any);
+push(@$search_streams,'up')      if($search_upstream);
+push(@$search_streams,'down')    if($search_downstream);
+push(@$search_streams,'left')    if($search_left);
+push(@$search_streams,'right')   if($search_right);
+push(@$search_streams,'over')    if($search_overlap);
+push(@$search_streams,'nonover') if($search_nonoverlap);
 
 my $feat_orients = [];
 push(@$feat_orients,'any')         if(scalar(@feat_orientations) == 0 ||
@@ -561,13 +576,9 @@ push(@$feat_orients,'+')           if(scalar(grep {/^(p|\+)/i}
 					     @feat_orientations));
 push(@$feat_orients,'-')           if(scalar(grep {/^(m|-)/i}
 					     @feat_orientations));
-push(@$feat_orients,'away')        if(scalar(grep {/^(away|upstream)$/i}
+push(@$feat_orients,'away')        if(scalar(grep {/^(aw|u)/i}
 					     @feat_orientations));
-push(@$feat_orients,'toward')      if(scalar(grep {/^(toward|downstream)$/i}
-					     @feat_orientations));
-push(@$feat_orients,'away-over')   if(scalar(grep {/^(away_o|upstream_o)/i}
-					     @feat_orientations));
-push(@$feat_orients,'toward-over') if(scalar(grep {/^(toward_o|downstream_o)/i}
+push(@$feat_orients,'toward')      if(scalar(grep {/^(t|d)/i}
 					     @feat_orientations));
 push(@$feat_orients,'same')        if(scalar(grep {/^s/i} @feat_orientations));
 push(@$feat_orients,'opp')         if(scalar(grep {/^o/i} @feat_orientations));
@@ -581,18 +592,32 @@ if(scalar(@feat_orientations) > scalar(@$feat_orients))
   }
 
 if(scalar(grep {$_ eq 'over'} @$search_streams) &&
+   scalar(@$search_streams) == 1 &&
    scalar(grep {$_ eq 'away' || $_ eq 'toward'} @$feat_orients))
   {
-    error("The -v flag (search for overlap of the input data) and -t ",
-	  "[away|toward|upstream|downstream] are incompatible.  A feature ",
-	  "can not both be overlapping and facing away or toward at the same ",
-	  "time.  To search for the closest feature that is for example ",
-	  "either facing away or overlapping (where overlapping would be ",
-	  "'closer'), use '-t away_or_over' and do not supply -u, -d, or -v.");
+    error("The -v flag (search for overlap of the input data) and -t with a ",
+	  "facing orientation (e.g. away, toward, upstream, or downstream) ",
+	  "are incompatible.  The determination of away/toward feature ",
+	  "orientations in cases of overlap is not supported at this time.  ",
+	  "Please use -u, -d, -l, -g, or -x when using -t with a facing ",
+	  "orientation.  You may supply -v to search overlap as well, but ",
+	  "only in addition to -u, -d, -x, -l, -g, or -z.  See the usage for ",
+	  "more details.");
     quit(25);
   }
 
-if(scalar(grep {$_ ne 'any'} @$search_streams) ||
+if(scalar(grep {$_ eq 'over' || $_ eq 'any'} @$search_streams) &&
+   scalar(grep {$_ eq 'away' || $_ eq 'toward'} @$feat_orients))
+  {
+    warning("Supplying -t with a facing orientation (e.g. away, toward, ",
+	    "upstream, or downstream) and with -v or -z (or without -u, -d, ",
+	    "-v, -x, -l, -g, and -z) may produce unexpected results.  The ",
+	    "determination of away/toward feature orientations in cases of ",
+	    "overlap is not supported at this time.  See the usage for more ",
+	    "details.");
+  }
+
+if(scalar(grep {$_ ne 'any' && $_ ne 'nonover'} @$search_streams) ||
    scalar(grep {$_ ne 'any' && $_ ne 'away'} @$feat_orients))
   {
     my @untested_streams = grep {$_ ne 'any'} @$search_streams;
@@ -600,6 +625,8 @@ if(scalar(grep {$_ ne 'any'} @$search_streams) ||
 	  join(',',@untested_streams),") has not been tested.  Use at your ",
 	  "own risk.  It is highly recommended that you check the output for ",
 	  "correctness.") if(scalar(@untested_streams));
+
+    #Filter out the properly tested and validated values
     my @untested_orients = grep {$_ ne 'any' && $_ ne 'away' && $_ ne 'toward'}
       @$feat_orients;
     error("The validity of the output using the -t option with these values [",
@@ -2113,8 +2140,8 @@ rwleach\@ccr.buffalo.edu
                  feature file are all reported in the same order unless
                  otherwise specified by the -m or -w options respectively.
                  Intervening columns indicating feature distances of closest
-                 features among samples are reported.  If -u, -d, -v, or -t are
-                 supplied, the feature column set specified by -w and
+                 features among samples are reported.  If -u, -d, -v, -x, or -t
+                 are supplied, the feature column set specified by -w and
                  associated intervening columns are multiplied.  See column
                  headers to know which columns contain features associated to
                  which samples, regions, and orientations.  Column headers in
@@ -2377,53 +2404,97 @@ end_print
                                    order supplied).  You may re-use column
                                    numbers.
      -u|--search-upstream OPTIONAL [Off] Search upstream of the input data
-                                   coordinates and report features found there.
-                                   Default behavior is to search upstream,
-                                   downstream, and overlap and report the
-                                   single closest feature (or multiple
+                                   coordinates and report closest single
+                                   feature (or multiple equidistant features)
+                                   found there.  Default behavior is to search
+                                   upstream, downstream, and overlap and report
+                                   the single closest feature (or multiple
                                    equidistant features).  Requires -p.
      -d|--search-         OPTIONAL [Off] Search downstream of the input data
-        downstream                 coordinates and report features found there.
-                                   Default behavior is to search upstream,
-                                   downstream, and overlap and report the
-                                   single closest feature (or multiple
+        downstream                 coordinates and report the closest single
+                                   feature (or multiple equidistant features)
+                                   found there.  Default behavior is to search
+                                   upstream, downstream, and overlap and report
+                                   the single closest feature (or multiple
                                    equidistant features).  Requires -p.
+     -l|--search-left     OPTIONAL [Off] Search left of the input data
+                                   coordinates (i.e. feature coordinates are
+                                   lesser than data input coordinates) and
+                                   report closest single feature (or multiple
+                                   equidistant features) found there.  Default
+                                   behavior is to search upstream, downstream,
+                                   and overlap and report the single closest
+                                   feature (or multiple equidistant features).
+     -g|--search-right    OPTIONAL [Off] Search right of the input data
+                                   coordinates (i.e. feature coordinates are
+                                   greater than data input coordinates) and
+                                   report closest single feature (or multiple
+                                   equidistant features) found there.  Default
+                                   behavior is to search upstream, downstream,
+                                   and overlap and report the single closest
+                                   feature (or multiple equidistant features).
      -v|--search-overlap  OPTIONAL [Off] Search for overlap of the input data
                                    coordinates and report features found there.
+                                   All overlapping features will be reported,
+                                   even if they overlap by a single base.
                                    Default behavior is to search upstream,
                                    downstream, and overlap and report the
                                    single closest feature (or multiple
                                    equidistant features).
+     -x|--search-         OPTIONAL [Off] Search upstream and downstream of the
+        nonoverlap                 input data coordinates and report the
+                                   closest single feature (or multiple
+                                   equidistant features) found in one of the
+                                   two regions.  All overlapping features will
+                                   be ignored, even if they overlap by a single
+                                   base.  Default behavior is to search
+                                   upstream, downstream, and overlap and report
+                                   the single closest feature (or multiple
+                                   equidistant features).
+     -z|--search-any      OPTIONAL [Off] Search upstream, downstream, and the
+                                   overlapping region of the input data
+                                   coordinates and report the closest single
+                                   feature (or multiple equidistant features)
+                                   found in any of the regions.  All
+                                   overlapping features will be considered
+                                   equivalently closest, even if they overlap
+                                   by a single base.  This is the default
+                                   behavior if -u, -d, -v, -x, and -z are not
+                                   supplied.
      -t|--feat-           OPTIONAL [any] {any,plus,minus,+,-,same,opposite,
-        orientation                away,toward,upstream,downstream,
-                                   away_or_over,toward_or_over,
-                                   upstream_or_over,downstream_or_over} Report
+        orientation                away,toward,upstream,downstream} Report
                                    features in the supplied orientation.
                                    Default behavior is to report the closest
                                    feature in any orientation and does not
-                                   require -p or -n.  Plus, minus, +, and - do
-                                   not require -p, but require -n.
-                                   Orientations relative to the input data
-                                   coordinates (same, opposite, away*, toward*,
-                                   upstream*, downstream*) require -p and -n.
-                                   "Away" (same as "upstream") means that the
-                                   feature's upstream region is closer to the
-                                   input data coordinates.  "Toward" (same as
-                                   "downstream") means that the feature's
+                                   require -p or -n.  Plus & minus (or + & -)
+                                   require -n.  Orientations relative to the
+                                   input data coordinates (same, opposite,
+                                   away, toward, upstream, downstream) require
+                                   -p and -n.  Away (same as upstream) means
+                                   that the feature's upstream region is closer
+                                   to the input data coordinates.  Toward (same
+                                   as downstream) means that the feature's
                                    downstream region is closer.  If there is
-                                   any overlap, the feature is not considered
-                                   either 'away' or 'toward'.  To use away or
-                                   toward and still consider overlap (which
-                                   would be 'closer'), use away_or_over or
-                                   toward_or_over.  You may supply multiple
-                                   orientations separated by non-alphanumeric
-                                   (including '_') characters.  Each
-                                   orientation supplied here will cause
+                                   any overlap, the feature is considered
+                                   neither 'away' nor 'toward', but rather
+                                   'overlapping'.  So if overlaps are included
+                                   in the search (i.e. -d, -u, -v, and -x are
+                                   not provided), overlapping features,
+                                   regardless of orientation, will be reported
+                                   instead of non-overlapping features in the
+                                   away/toward orientation because the overlaps
+                                   are 'closer'.  To use away/toward and ignore
+                                   overlapping features, use -x.  To always
+                                   report both non-overlapping away/toward
+                                   features and overlapping features
+                                   separately, supply both -v and -x.  You may
+                                   supply multiple orientations separated by
+                                   non-alphanumeric (including '_') characters.
+                                   Each orientation supplied here will cause
                                    multiple sets of feature columns (specified
                                    by -w) to be reported.  This is compounded
                                    by the multiple column sets generated by -u,
-                                   -d, and -v.  Away* and toward* are not
-                                   compatible with -v.
+                                   -d, -v, and -x.
      -o|--outfile-suffix  OPTIONAL [nothing] This suffix is added to the input
                                    file names to use as output files.
                                    Redirecting a file into this script will
@@ -3107,9 +3178,8 @@ sub getClosestFeature
     my $features               = $_[4];
     my $num_samples            = scalar(keys(%{$_[5]}));
     my $search_range           = $_[6];
-    my $search_stream          = $_[7]; #any,up,down,over
-    my $feat_orient            = $_[8]; #+,-,same,opp,away,toward,away-over,
-                                        #toward-over
+    my $search_stream          = $_[7]; #any,up,down,over,nonover,left,right
+    my $feat_orient            = $_[8]; #+,-,same,opp,away,toward
 
     my $closest_feat           = {};
     my $closest_distance       = {};
@@ -3153,29 +3223,43 @@ sub getClosestFeature
 	  {debug();next}
 	elsif($search_stream ne 'any')
 	  {
-	    #Overlap
+	    #Overlap - skip if search_stream is over & feature doesn't overlap
 	    if($search_stream eq 'over' &&
 	       !(($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
 		 ($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
 		 ($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
 	      {debug();next}
 
-	    #Upstream/downstream
+	    #Non-Overlap - skip if search_stream is nonover & feature overlaps
+	    if(($search_stream eq 'nonover' || $search_stream eq 'up' ||
+		$search_stream eq 'down' || $search_stream eq 'left' ||
+		$search_stream eq 'right') &&
+	       (($feat->{START1} >= $start1 && $feat->{START1} <= $stop1) ||
+		($feat->{STOP1} >= $start1 && $feat->{STOP1} <= $stop1) ||
+		($feat->{START1} < $start1 && $feat->{STOP1} > $stop1)))
+	      {debug();next}
+
+	    #Upstream/downstream - skip if feature is not in the search area
 	    if($search_stream eq 'up' || $search_stream eq 'down')
 	      {
 		if($strand eq '+')
 		  {
-		    if($search_stream eq 'up' && $feat->{STOP1} >= $start1)
+		    if($search_stream eq 'up' && $feat->{STOP1} >= $start1 &&
+		       $feat->{START1} >= $start1)
 		      {debug();next}
 		    elsif($search_stream eq 'down' &&
-			  $feat->{START1} <= $stop1)
+			  $feat->{START1} <= $stop1 &&
+			  $feat->{STOP1} <= $stop1)
 		      {debug();next}
 		  }
 		elsif($strand eq '-')
 		  {
-		    if($search_stream eq 'down' && $feat->{STOP1} >= $start1)
+		    if($search_stream eq 'down' && $feat->{STOP1} >= $start1 &&
+		       $feat->{START1} >= $start1)
 		      {debug();next}
-		    elsif($search_stream eq 'up' && $feat->{START1} <= $stop1)
+		    elsif($search_stream eq 'up' &&
+			  $feat->{START1} <= $stop1 &&
+			  $feat->{STOP1} <= $stop1)
 		      {debug();next}
 		  }
 		else
@@ -3183,6 +3267,19 @@ sub getClosestFeature
 		    error("Invalid strand value: [$strand].");
 		    next;
 		  }
+	      }
+
+	    #Left/right - skip if feature is not in the search area
+	    if($search_stream eq 'left' || $search_stream eq 'right')
+	      {
+		if($search_stream eq 'left' && $feat->{STOP1} >= $start1 &&
+		   $feat->{STOP1} >= $stop1 && $feat->{START1} >= $start1 &&
+		   $feat->{START1} >= $stop1)
+		  {debug();next}
+		elsif($search_stream eq 'right' && $feat->{START1} <= $stop1 &&
+		      $feat->{START1} <= $start1 && $feat->{STOP1} <= $stop1 &&
+		      $feat->{STOP1} <= $start1)
+		  {debug();next}
 	      }
 	  }
 
@@ -3200,9 +3297,10 @@ sub getClosestFeature
 	#Away/toward
 	if($feat_orient eq 'away')
 	  {
-	    #An overlapping feature cannot be facing away
-	    if($side eq 'over')
-	      {debug();next}
+	    #Version 3.6 includes overlap in away/toward searches
+#	    #An overlapping feature cannot be facing away
+#	    if($side eq 'over')
+#	      {debug();next}
 
 	    #Away: (side = left && feat strand = -) OR
 	    #      (side = right && feat strand = +)
@@ -3212,26 +3310,11 @@ sub getClosestFeature
 	  }
 	elsif($feat_orient eq 'toward')
 	  {
-	    #An overlapping feature cannot be facing toward
-	    if($side eq 'over')
-	      {debug();next}
+	    #Version 3.6 includes overlap in away/toward searches
+#	    #An overlapping feature cannot be facing toward
+#	    if($side eq 'over')
+#	      {debug();next}
 
-	    #Toward: (side = left && feat strand = +) OR
-	    #        (side = right && feat strand = -)
-	    if(($feat->{STRAND} eq '+' && $side eq 'right') ||
-	       ($feat->{STRAND} eq '-' && $side eq 'left'))
-	      {debug();next}
-	  }
-	elsif($feat_orient eq 'away-over')
-	  {
-	    #Away: (side = left && feat strand = -) OR
-	    #      (side = right && feat strand = +)
-	    if(($feat->{STRAND} eq '+' && $side eq 'left') ||
-	       ($feat->{STRAND} eq '-' && $side eq 'right'))
-	      {debug();next}
-	  }
-	elsif($feat_orient eq 'toward-over')
-	  {
 	    #Toward: (side = left && feat strand = +) OR
 	    #        (side = right && feat strand = -)
 	    if(($feat->{STRAND} eq '+' && $side eq 'right') ||
@@ -3326,7 +3409,7 @@ sub getClosestFeature
 		 exists($closest_feat->{$feat->{SAMPLE}}->{OTHERS}));
 	    debug("Feature is Closer.") if($DEBUG > 1);
 
-	    #The closest-overall feature is handled above and below I handle the closest feature "to the left" (i.e. the coordinates of the feature are less than the coordinates of the query.  We can't handle the upstream/downstream issue because the start is always less than the stop in the 
+	    #The closest-overall feature is handled above and below I handle the closest feature "to the left" (i.e. the coordinates of the feature are less than the coordinates of the query.  We can't handle the upstream/downstream issue because the start is always less than the stop)
 	    if($direction eq 'left')
 	      {
 		$closest_distance_left->{$feat->{SAMPLE}} = $distance;
