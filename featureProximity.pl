@@ -7,7 +7,7 @@
 #Copyright 2008
 
 #These variables (in main) are used by getVersion() and usage()
-my $software_version_number = '3.7';
+my $software_version_number = '3.8';
 my $created_on_date         = '11/2/2011';
 
 ##
@@ -620,7 +620,7 @@ if(scalar(grep {$_ eq 'over' || $_ eq 'any'} @$search_streams) &&
 if(scalar(grep {$_ ne 'any' && $_ ne 'nonover'} @$search_streams) ||
    scalar(grep {$_ ne 'any' && $_ ne 'away'} @$feat_orients))
   {
-    my @untested_streams = grep {$_ ne 'any'} @$search_streams;
+    my @untested_streams = grep {$_ ne 'any' && $_ ne 'up'} @$search_streams;
     error("The validity of the output using the -u -v, or -d options (e.g. ",
 	  join(',',@untested_streams),") has not been tested.  Use at your ",
 	  "own risk.  It is highly recommended that you check the output for ",
@@ -735,8 +735,8 @@ foreach my $input_file_set (@input_files)
 	## Determine the current feature file
 	##
 
-	#If there are the same number of feature file sets as input
-	#file sets
+	#If there are the same number of feature file *sets* as input
+	#file *sets* require 1:M feature_files:input_files
 	if(scalar(@feature_files) == scalar(@input_files))
 	  {
 	    #If there's 1 feature file per input file set
@@ -755,8 +755,9 @@ foreach my $input_file_set (@input_files)
 	    #Else Error
 	    else
 	      {
-		error("Cannot determine corresponding feature file for ",
-		      "$input_file.");
+		error("Too many feature files for data file: [$input_file].  ",
+		      "Only multiple data files to 1 feature file is ",
+		      "supported.");
 		next;
 	      }
 	  }
@@ -860,7 +861,7 @@ foreach my $input_file_set (@input_files)
 		#Skip commented lines
 		if(/^\s*#/)
 		  {
-		    #We cannot get here unless there is enough columns, so we
+		    #We cannot get here unless there are enough columns, so we
 		    #can assume this is a header line since it is commented and
 		    #has tabs, but we only want to create column headers if
 		    #they haven't already been set
@@ -1051,10 +1052,12 @@ foreach my $input_file_set (@input_files)
 		    #variants will yield the same "feature".  Here, we check
 		    #for features that are indistinguishable
 		    if(exists($redund_check->{$feat_sample}) &&
-		       exists($redund_check->{$feat_sample}->{$feat_out}))
+		       exists($redund_check->{$feat_sample}
+			      ->{"$feat_chr1:$feat_start1-$feat_end1"}))
 		      {
 			warning("Skipping redundant feature found in feature ",
-				"file: [$current_feature_file]: [$feat_out].");
+				"file: [$current_feature_file]: [$feat_chr1:",
+				"$feat_start1-$feat_end1].");
 			next;
 		      }
 
@@ -1086,7 +1089,8 @@ foreach my $input_file_set (@input_files)
 
 		    #Record the feature in the redundancy hash to help
 		    #eliminate duplicates.
-		    $redund_check->{$feat_sample}->{$feat_out} = 1;
+		    $redund_check->{$feat_sample}
+		      ->{"$feat_chr1:$feat_start1-$feat_end1"} = 1;
 		  }
 
 		$sample_hash->{$current_feature_file}->{$feat_sample} = 1
@@ -1144,6 +1148,8 @@ foreach my $input_file_set (@input_files)
 	    if(!exists($feat_headers->{$current_feature_file}))
 	      {$feat_headers->{$current_feature_file} =
 		 [map {"ftcol($_)"}
+		  grep {my $c = $_;scalar(@feat_out_cols) == 0 ||
+			  scalar(grep {$_ == $c} @feat_out_cols)}
 		  (1..$max_feat_cols->{$current_feature_file})]}
 	    #We can assume it cannot be more because the max was based on the
 	    #column header row as well
@@ -1183,7 +1189,10 @@ foreach my $input_file_set (@input_files)
 		    '] Closed feature file.  Time taken: [',scalar(markTime()),
 		    ' Seconds].');
 	  }
-	elsif(scalar($feature_hash->{$current_feature_file}) == 0)
+	#Since a key already exists, it's no longer a hash of arrays, but a
+	#hash of hashes (keyed on chromosome) of hashes (keyed on region) of
+	#arrays of feature hashes
+	elsif(scalar(keys(%{$feature_hash->{$current_feature_file}})) == 0)
 	  {
 	    warning("No features were parsed from feature file: ",
 		    "[$current_feature_file].  Skipping.");
@@ -1197,12 +1206,21 @@ foreach my $input_file_set (@input_files)
 	if($search_range < 0)
 	  {$magnitude = 0}
 
-	#Now segment the hash based on this magnitude
+	#Now (if it hasn't already been segmented - inferred by the structure)
+	#segment the hash based on this magnitude
 	#Note: this changes the structure of the hash to have 2 more levels of
 	#keys (chromosome and region start coordinate)
-	$feature_hash->{$current_feature_file} =
-	  segmentHash($magnitude,
-		      $feature_hash->{$current_feature_file});
+	if(ref($feature_hash->{$current_feature_file}) eq 'ARRAY')
+	  {$feature_hash->{$current_feature_file} =
+	     segmentHash($magnitude,
+			 $feature_hash->{$current_feature_file})}
+
+	if(scalar(keys(%{$feature_hash->{$current_feature_file}})) == 0)
+	  {
+	    error("No features found for feature file ",
+		  "[$current_feature_file].");
+	    next;
+	  }
 
 	#Commented out the following line to create the current features on the
 	#fly with a narrower set of features based on a hash lookup (like a
@@ -3519,8 +3537,16 @@ sub segmentHash
       }
 
     my $new_feat_hash = {};
+    my $tmp_feat_hash = $feat_hash;
 
-    foreach my $feat (@$feat_hash)
+    if(!defined($feat_hash) || ref($feat_hash) ne 'ARRAY')
+      {
+	error('Expected a reference to an array, but got [',
+	      (defined($feat_hash) ? ref($feat_hash) : 'undef'),'] instead.');
+	return($new_feat_hash);
+      }
+
+    foreach my $feat (@$tmp_feat_hash)
       {
 	my $region  = ($magnitude > 0 ? int($feat->{START1} / $magnitude) *
 		       $magnitude : 0);
