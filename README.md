@@ -1,4 +1,4 @@
-featureProximity.pl version 3.8
+# featureProximity.pl version 3.8
 Copyright 2017
 Robert W. Leach
 Created: 11/2/2011
@@ -50,7 +50,7 @@ Last Modified: Thu Mar 16 16:16:22 2017
                  opposite strand.
 
 
-USAGE: featureProximity.pl -i "input file(s)" [options]
+## USAGE: featureProximity.pl -i "input file(s)" [options]
 
      -i|--data-file*      REQUIRED Space-separated tab-delimited data file(s)
         --input-file               which contain a unique data ID for each row,
