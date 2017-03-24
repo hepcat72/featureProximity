@@ -212,7 +212,6 @@ addArrayOption(GETOPTKEY   => 't|feat-orientation=s',
 	       ACCEPTS     => [qw(any away toward same opposite
                                   + - plus minus)]);
 
-debug($output_desc);
 processCommandLine();
 
 ##
@@ -1588,9 +1587,7 @@ while(nextFileSet())
 	       "not found in the feature file [$feat_file]: [",
 	       join(',',@not_in_feat),"].")}
 
-    debug("Calling closeOut");
     closeOut(*OUTPUT);
-    debug("closeOut done");
   }
 
 
@@ -1780,7 +1777,9 @@ sub getClosestFeature
 	      {debug();next}
 	  }
 
-	debug("Inspecting: $search_stream,$feat_orient\nDATA: $chr1,$start1,$stop1,$strand\nFEAT: $feat->{CHR1},$feat->{START1},$feat->{STOP1},$feat->{STRAND}");
+	debug("Inspecting: $search_stream,$feat_orient\nDATA: $chr1,$start1,",
+	      "$stop1,$strand\nFEAT: $feat->{CHR1},$feat->{START1},",
+	      "$feat->{STOP1},$feat->{STRAND}");
 
 	#Strip any distances which have been added by previous calls
 	if(exists($feat->{DISTANCE}))
