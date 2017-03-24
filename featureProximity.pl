@@ -70,7 +70,7 @@ addArrayOption(GETOPTKEY   => 'c|data-seq-id-col=s',
 	       GETOPTVAL   => \@data_chr1_cols,
 	       REQUIRED    => 1,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Sequence ID column num of data file (-i).',
+	       SMRY_DESC   => 'Sequence ID col num of data file (-i).',
 	       DETAIL_DESC => $cflag_desc,
 	       INTERPOLATE => 1);
 
@@ -79,7 +79,7 @@ addArrayOption(GETOPTKEY   => 'a|feat-seq-id-col=s',
 	       GETOPTVAL   => \@feat_chr1_cols,
 	       REQUIRED    => 1,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Sequence ID column num of feat file (-f).',
+	       SMRY_DESC   => 'Sequence ID col num of feat file (-f).',
 	       DETAIL_DESC => $aflag_desc,
 	       INTERPOLATE => 1);
 
@@ -88,7 +88,7 @@ addArrayOption(GETOPTKEY   => 'b|data-start-col=s',
 	       GETOPTVAL   => \@data_start1_cols,
 	       REQUIRED    => 1,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Start coord column num of data file (-i).',
+	       SMRY_DESC   => 'Start coord col num of data file (-i).',
 	       DETAIL_DESC => $bflag_desc,
 	       INTERPOLATE => 1);
 
@@ -97,7 +97,7 @@ addArrayOption(GETOPTKEY   => 'j|feat-start-col=s',
 	       GETOPTVAL   => \@feat_start1_cols,
 	       REQUIRED    => 1,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Start coord column num of feat file (-f).',
+	       SMRY_DESC   => 'Start coord col num of feat file (-f).',
 	       DETAIL_DESC => $jflag_desc,
 	       INTERPOLATE => 1);
 
@@ -106,7 +106,7 @@ addArrayOption(GETOPTKEY   => 'e|data-stop-col=s',
 	       GETOPTVAL   => \@data_end1_cols,
 	       REQUIRED    => 1,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Stop coord column num of data file (-i).',
+	       SMRY_DESC   => 'Stop coord col num of data file (-i).',
 	       DETAIL_DESC => $eflag_desc,
 	       INTERPOLATE => 1);
 
@@ -115,7 +115,7 @@ addArrayOption(GETOPTKEY   => 'k|feat-stop-col=s',
 	       GETOPTVAL   => \@feat_end1_cols,
 	       REQUIRED    => 1,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Stop coord column num of feat file (-f).',
+	       SMRY_DESC   => 'Stop coord col num of feat file (-f).',
 	       DETAIL_DESC => $kflag_desc,
 	       INTERPOLATE => 1);
 
@@ -123,14 +123,14 @@ my $feat_sample_col = 0;
 addOption(GETOPTKEY   => 's|feat-sample-col=s',
 	  GETOPTVAL   => \$feat_sample_col,
 	  DEFAULT     => $feat_sample_col,
-	  SMRY_DESC   => 'Sample name column num of feat file (-f).',
+	  SMRY_DESC   => 'Sample name col num of feat file (-f).',
 	  DETAIL_DESC => $sflag_desc);
 
 my @data_out_cols = ();
 addArrayOption(GETOPTKEY   => 'm|data-out-cols=s',
 	       GETOPTVAL   => \@data_out_cols,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Column nums of data file (-i) to output.',
+	       SMRY_DESC   => 'Col nums of data file (-i) to output.',
 	       DETAIL_DESC => $mflag_desc,
 	       INTERPOLATE => 1);
 
@@ -138,7 +138,7 @@ my @feat_out_cols = ();
 addArrayOption(GETOPTKEY   => 'w|feat-out-cols=s',
 	       GETOPTVAL   => \@feat_out_cols,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Column nums of feat file (-f) to output.',
+	       SMRY_DESC   => 'Col nums of feat file (-f) to output.',
 	       DETAIL_DESC => $wflag_desc,
 	       INTERPOLATE => 1);
 
@@ -146,7 +146,7 @@ my @data_strand_cols = ();
 addArrayOption(GETOPTKEY   => 'p|data-strand-col=s',
 	       GETOPTVAL   => \@data_strand_cols,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Strand column nums of data file (-i).',
+	       SMRY_DESC   => 'Strand col nums of data file (-i).',
 	       DETAIL_DESC => $pflag_desc,
 	       INTERPOLATE => 1);
 
@@ -154,7 +154,7 @@ my @feat_strand_cols = ();
 addArrayOption(GETOPTKEY   => 'n|feat-strand-col=s',
 	       GETOPTVAL   => \@feat_strand_cols,
 	       DEFAULT     => '0',
-	       SMRY_DESC   => 'Strand column nums of feat file (-f).',
+	       SMRY_DESC   => 'Strand col nums of feat file (-f).',
 	       DETAIL_DESC => $nflag_desc,
 	       INTERPOLATE => 1);
 
@@ -204,8 +204,8 @@ my @feat_orientations = ();
 addArrayOption(GETOPTKEY   => 't|feat-orientation=s',
 	       GETOPTVAL   => \@feat_orientations,
 	       DEFAULT     => 'any',
-	       SMRY_DESC   => ('Feature orientation requirement as compared ' .
-			       'to the coords in the data file (-i) or the ' .
+	       SMRY_DESC   => ('Feature orientation requirement relative to ' .
+			       'the coords in the data file (-i) or the ' .
 			       'strand.'),
 	       DETAIL_DESC => $tflag_desc,
 	       INTERPOLATE => 1,
@@ -718,7 +718,8 @@ while(nextFileSet())
 		    next;
 		  }
 
-		debug({LEVEL => 2},"FEAT STRAND BEFORE: [$feat_strand].");
+		debug({LEVEL => 2},"FEAT STRAND BEFORE: [",
+		      (defined($feat_strand) ? $feat_strand : 'undef'),"].");
 		if(scalar(@feat_strand_inds))
 		  {
 		    if($feat_strand !~ /(\+|-|plus|minus|\d|comp|fpr|rev)/)
@@ -798,7 +799,7 @@ while(nextFileSet())
 	      if($first_feat_recorded);
 	  }
 
-	close(FEAT);
+	closeIn(*FEAT);
 
 	if(!$first_feat_recorded)
 	  {
@@ -928,7 +929,7 @@ while(nextFileSet())
     ##
 
     my $outfile = getOutfile();
-    openOut(*OUTPUT,">$outfile") || next;
+    openOut(*OUTPUT,$outfile) || next;
 
     ##
     ## Prepare the current input file
@@ -1587,7 +1588,9 @@ while(nextFileSet())
 	       "not found in the feature file [$feat_file]: [",
 	       join(',',@not_in_feat),"].")}
 
+    debug("Calling closeOut");
     closeOut(*OUTPUT);
+    debug("closeOut done");
   }
 
 
@@ -2013,8 +2016,6 @@ DESC_END
 
     $iflag_desc =<< 'END_DESC';
 Space-separated tab-delimited data file(s) which contain a unique data ID for each row, a sequence ID, and a start and stop coordinate.  When used with input on standard-in, the value of this paramter is used as a file name stub for naming the output files).  Note, -o can be  used to append to what is supplied here to form new output file names.  The script will expand BSD glob characters such as '*', '?', and '[...]' (e.g. -i "*.txt *.text").  See --help for a description of the input file format.
-
-Test string
 END_DESC
 
     $fflag_desc =<< 'END_DESC';
@@ -2022,90 +2023,87 @@ Space-separated tab-delimited feature file(s) which contain a unique feature ID 
 END_DESC
 
     $rflag_desc =<< 'END_DESC';
-     -r|--search-range    OPTIONAL [-1] The maximum distance of reported features.  Features further away will not be output.  A negative value means no limit.  A 0 value means only report overlapping features.
+The maximum distance of reported features.  Features further away will not be output.  A negative value means no limit.  A 0 value means only report overlapping features.
 END_DESC
 
     $cflag_desc =<< 'END_DESC';
-     -c|--data-seq-id-col REQUIRED [0] The column number where the sequence ID for the start and stop can be found in the data file (see -i).  This can be a chromosome number, a GI number, or any identifier of a single contiguous sequence. This identifier must match a sequence identifier in the feature file.  More than 1 may be provided (e.g. to denote structural variants).
+The column number where the sequence ID for the start and stop can be found in the data file (see -i).  This can be a chromosome number, a GI number, or any identifier of a single contiguous sequence. This identifier must match a sequence identifier in the feature file.  More than 1 may be provided (e.g. to denote structural variants).
 END_DESC
 
     $bflag_desc =<< 'END_DESC';
-     -b|--data-start-col  REQUIRED [0] The column number where the start coordinate can be found in the data file (see -i).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
+The column number where the start coordinate can be found in the data file (see -i).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
 END_DESC
 
     $eflag_desc =<< 'END_DESC';
-     -e|--data-stop-col   REQUIRED [0] The column number where the stop coordinate can be found in the data file (see -i).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
+The column number where the stop coordinate can be found in the data file (see -i).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
 END_DESC
 
     $pflag_desc =<< 'END_DESC';
-     -p|--data-strand-col OPTIONAL [0] The column number where the strand can be found in the data file (see -i). Note, this script is smart enough to interpret strandedness when combined with coordinate columns.  You may re-use a coordinate column to supply here as the strand column.  Here are example patterns are matched: {+,-,plus,minus,1234c, comp(1234..5678),for,rev}.  As long as a portion of the string is matched, strand will be saved.  Required if -u, -d, or -t is supplied.
+The column number where the strand can be found in the data file (see -i). Note, this script is smart enough to interpret strandedness when combined with coordinate columns.  You may re-use a coordinate column to supply here as the strand column.  Here are example patterns are matched: {+,-,plus,minus,1234c, comp(1234..5678),for,rev}.  As long as a portion of the string is matched, strand will be saved.  Required if -u, -d, or -t is supplied.
 END_DESC
 
     $mflag_desc =<< 'END_DESC';
-     -m|--data-out-cols   OPTIONAL [all] The column number(s) (separated by non-numbers (e.g. commas)) in the data file (see -i) that are to be used in the output table (in the supplied order).  You may re- use column numbers.
+The column number(s) (separated by non-numbers (e.g. commas)) in the data file (see -i) that are to be used in the output table (in the supplied order).  You may re- use column numbers.
 END_DESC
 
     $sflag_desc =<< 'END_DESC';
-     -s|--feat-sample-col OPTIONAL [0] The column number where a sample ID can be found in the feature file (see -f).  For every row of output, the samples that have features close to the coordinates in the input file will be added as a separate sample column.  '0' means there is no sample data.  Note, sample data in the data file is not supported.
+The column number where a sample ID can be found in the feature file (see -f).  For every row of output, the samples that have features close to the coordinates in the input file will be added as a separate sample column.  '0' means there is no sample data.  Note, sample data in the data file is not supported.
 END_DESC
 
     $aflag_desc =<< 'END_DESC';
-     -a|--feat-seq-id-col REQUIRED [0] The column number where the sequence ID for the start and stop coordinates can be found in the feature file (see -f).  This can be a chromosome number, a GI number, or any identifier of a single contiguous sequence.  This identifier must match a sequence identifier in the data file.  More than 1 may be provided (e.g. to denote structural variants).
+The column number where the sequence ID for the start and stop coordinates can be found in the feature file (see -f).  This can be a chromosome number, a GI number, or any identifier of a single contiguous sequence.  This identifier must match a sequence identifier in the data file.  More than 1 may be provided (e.g. to denote structural variants).
 END_DESC
 
     $jflag_desc =<< 'END_DESC';
-     -j|--feat-start-col  REQUIRED [0] The column number where the start coordinate can be found in the feature file (see -f).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
+The column number where the start coordinate can be found in the feature file (see -f).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
 END_DESC
 
     $kflag_desc =<< 'END_DESC';
-     -k|--feat-stop-col   REQUIRED [0] The column number where the stop coordinate can be found in the feature file (see -f).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
+The column number where the stop coordinate can be found in the feature file (see -f).  The value in the column may be two numbers separated by non-numbers as long as the start is first and the stop is last (e.g. 1..526 where start=1 and stop=526). More than 1 may be provided (e.g. to denote structural variants).
 END_DESC
 
     $nflag_desc =<< 'END_DESC';
-     -n|--feat-strand-col OPTIONAL [0] The column number where the strand can be found in the data file (see -i). Note, this script is smart enough to interpret strandedness when combined with coordinate columns.  You may re-use a coordinate column to supply here as the strand column.  Here are example patterns are matched: {+,-,plus,minus,1234c, comp(1234..5678),for,rev}.  As long as a portion of the string is matched, strand will be saved.  Required if -t is supplied.
+The column number where the strand can be found in the data file (see -i). Note, this script is smart enough to interpret strandedness when combined with coordinate columns.  You may re-use a coordinate column to supply here as the strand column.  Here are example patterns are matched: {+,-,plus,minus,1234c, comp(1234..5678),for,rev}.  As long as a portion of the string is matched, strand will be saved.  Required if -t is supplied.
 END_DESC
 
     $wflag_desc =<< 'END_DESC';
-     -w|--feat-out-cols   OPTIONAL [all] The column number or numbers (separated by non-numbers (e.g. commas)) in the feature file (supplied with -f) that are to be included in the output table (in the order supplied).  You may re-use column numbers.
+The column number or numbers (separated by non-numbers (e.g. commas)) in the feature file (supplied with -f) that are to be included in the output table (in the order supplied).  You may re-use column numbers.
 END_DESC
 
     $uflag_desc =<< 'END_DESC';
-     -u|--search-upstream OPTIONAL [Off] Search upstream of the input data coordinates and report closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).  Requires -p.
+Search upstream of the input data coordinates and report closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).  Requires -p.
 END_DESC
 
     $dflag_desc =<< 'END_DESC';
-     -d|--search-         OPTIONAL [Off] Search downstream of the input data
-        downstream                 coordinates and report the closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).  Requires -p.
+Search downstream of the input data coordinates and report the closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).  Requires -p.
 END_DESC
 
     $lflag_desc =<< 'END_DESC';
-     -l|--search-left     OPTIONAL [Off] Search left of the input data coordinates (i.e. feature coordinates are lesser than data input coordinates) and report closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
+Search left of the input data coordinates (i.e. feature coordinates are lesser than data input coordinates) and report closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
 END_DESC
 
     $gflag_desc =<< 'END_DESC';
-     -g|--search-right    OPTIONAL [Off] Search right of the input data coordinates (i.e. feature coordinates are greater than data input coordinates) and report closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
+Search right of the input data coordinates (i.e. feature coordinates are greater than data input coordinates) and report closest single feature (or multiple equidistant features) found there.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
 END_DESC
 
     $vflag_desc =<< 'END_DESC';
-     -v|--search-overlap  OPTIONAL [Off] Search for overlap of the input data coordinates and report features found there. All overlapping features will be reported, even if they overlap by a single base. Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
+Search for overlap of the input data coordinates and report features found there. All overlapping features will be reported, even if they overlap by a single base. Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
 END_DESC
 
     $xflag_desc =<< 'END_DESC';
-     -x|--search-         OPTIONAL [Off] Search upstream and downstream of the
-        nonoverlap                 input data coordinates and report the closest single feature (or multiple equidistant features) found in one of the two regions.  All overlapping features will be ignored, even if they overlap by a single base.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
+Search upstream and downstream of the input data coordinates and report the closest single feature (or multiple equidistant features) found in one of the two regions.  All overlapping features will be ignored, even if they overlap by a single base.  Default behavior is to search upstream, downstream, and overlap and report the single closest feature (or multiple equidistant features).
 END_DESC
 
     $zflag_desc =<< 'END_DESC';
-     -z|--search-any      OPTIONAL [Off] Search upstream, downstream, and the overlapping region of the input data coordinates and report the closest single feature (or multiple equidistant features) found in any of the regions.  All overlapping features will be considered equivalently closest, even if they overlap by a single base.  This is the default behavior if -u, -d, -v, -x, and -z are not supplied.
+Search upstream, downstream, and the overlapping region of the input data coordinates and report the closest single feature (or multiple equidistant features) found in any of the regions.  All overlapping features will be considered equivalently closest, even if they overlap by a single base.  This is the default behavior if -u, -d, -v, -x, and -z are not supplied.
 END_DESC
 
     $tflag_desc =<< 'END_DESC';
-     -t|--feat-           OPTIONAL [any] {any,plus,minus,+,-,same,opposite,
-        orientation                away,toward,upstream,downstream} Report features in the supplied orientation. Default behavior is to report the closest feature in any orientation and does not require -p or -n.  Plus & minus (or + & -) require -n.  Orientations relative to the input data coordinates (same, opposite, away, toward, upstream, downstream) require -p and -n.  Away (same as upstream) means that the feature's upstream region is closer to the input data coordinates.  Toward (same as downstream) means that the feature's downstream region is closer.  If there is any overlap, the feature is considered neither 'away' nor 'toward', but rather 'overlapping'.  So if overlaps are included in the search (i.e. -d, -u, -v, and -x are not provided), overlapping features, regardless of orientation, will be reported instead of non-overlapping features in the away/toward orientation because the overlaps are 'closer'.  To use away/toward and ignore overlapping features, use -x.  To always report both non-overlapping away/toward features and overlapping features separately, supply both -v and -x.  You may supply multiple orientations separated by non-alphanumeric (including '_') characters. Each orientation supplied here will cause multiple sets of feature columns (specified by -w) to be reported.  This is compounded by the multiple column sets generated by -u, -d, -v, and -x.
+Report features in the supplied orientation. Default behavior is to report the closest feature in any orientation and does not require -p or -n.  Plus & minus (or + & -) require -n.  Orientations of the feature coordinates relative to the input data coordinates (same, opposite, away, toward) require -p and -n.  Away means that the feature's upstream region is closer to the input data coordinates.  Toward means that the feature's downstream region is closer.  If there is any overlap, the feature is considered neither 'away' nor 'toward', but rather 'overlapping'.  So if overlaps are included in the search (i.e. -d, -u, -v, and -x are not provided), overlapping features, regardless of orientation, will be reported instead of non-overlapping features in the away/toward orientation because the overlaps are 'closer'.  To use away/toward and ignore overlapping features, use -x.  To always report both non-overlapping away/toward features and overlapping features separately, supply both -v and -x.  You may supply multiple orientations separated by non-alphanumeric (including '_') characters. Each orientation supplied here will cause multiple sets of feature columns (specified by -w) to be reported.  This is compounded by the multiple column sets generated by -u, -d, -v, and -x.
 END_DESC
 
     $oflag_desc =<< 'END_DESC';
-     -o|--outfile-suffix  OPTIONAL [nothing] This suffix is added to the input file names to use as output files. Redirecting a file into this script will result in the output file name to be "STDIN" with your suffix appended.  See --help for a description of the output file format.
+This suffix is added to the input file names to use as output files. Redirecting a file into this script will result in the output file name to be "STDIN" with your suffix appended.  See --help for a description of the output file format.
 END_DESC
   }
 
