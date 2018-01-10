@@ -24,7 +24,8 @@ my($description,$input_desc,$feature_input_desc,$output_desc,$iflag_desc,
 ## Define the command line interface
 ##
 
-setScriptInfo(VERSION => '3.9',
+our $VERSION = '3.13';
+setScriptInfo(VERSION => $VERSION,
               CREATED => '11/2/2011',
               AUTHOR  => 'Robert William Leach',
               CONTACT => 'rleach@princeton.edu',
@@ -363,6 +364,11 @@ push(@$search_streams,'left')    if($search_left);
 push(@$search_streams,'right')   if($search_right);
 push(@$search_streams,'over')    if($search_overlap);
 push(@$search_streams,'nonover') if($search_nonoverlap);
+my $tested_searches = {any     => 1,
+		       nonover => 1,
+		       left    => 1,
+		       right   => 1,
+		       over    => 1};
 
 my $feat_orients = [];
 push(@$feat_orients,'any')         if(scalar(@feat_orientations) == 0 ||
@@ -413,22 +419,23 @@ if(scalar(grep {$_ eq 'over' || $_ eq 'any'} @$search_streams) &&
 	    "details.");
   }
 
-if(scalar(grep {$_ ne 'any' && $_ ne 'nonover'} @$search_streams) ||
+if(scalar(grep {!exists($tested_searches->{$_})} @$search_streams) ||
    scalar(grep {$_ ne 'any' && $_ ne 'away'} @$feat_orients))
   {
-    my @untested_streams = grep {$_ ne 'any' && $_ ne 'up'} @$search_streams;
-    error("The validity of the output using the -u -v, or -d options (e.g. ",
-	  join(',',@untested_streams),") has not been tested.  Use at your ",
-	  "own risk.  It is highly recommended that you check the output for ",
-	  "correctness.") if(scalar(@untested_streams));
+    my @untested_streams = grep {!exists($tested_searches->{$_})}
+      @$search_streams;
+    warning("The validity of the output using the -u or -d options (e.g. ",
+	    join(',',@untested_streams),") has not been tested.  Use at your ",
+	    "own risk.  It is highly recommended that you check the output ",
+	    "for correctness.") if(scalar(@untested_streams));
 
     #Filter out the properly tested and validated values
     my @untested_orients = grep {$_ ne 'any' && $_ ne 'away' && $_ ne 'toward'}
       @$feat_orients;
-    error("The validity of the output using the -t option with these values [",
-	  join(',',@untested_orients),"] has not been tested.  Use at your ",
-	  "own risk.  It is highly recommended that you check the output for ",
-	  "correctness.") if(scalar(@untested_orients));
+    warning("The validity of the output using the -t option with these ",
+	    "values [",join(',',@untested_orients),"] has not been tested.  ",
+	    "Use at your own risk.  It is highly recommended that you check ",
+	    "the output for correctness.") if(scalar(@untested_orients));
   }
 
 my @bad_orients = grep {$_ !~ /^(an|p|m|\+|-|s|o|aw|t|u|d)/i}
@@ -503,7 +510,7 @@ my $region_size   = 1;
 my $first_loop = 1;
 
 #For each input file set
-while(nextFileSet())
+while(nextFileCombo())
   {
     my $data_file = getInfile($iid);
     my $feat_file  = getInfile($fid);
@@ -1372,7 +1379,8 @@ while(nextFileSet())
 	    #    Smpl-$s-FeatDist$c
 	    #    For each feature out column $f in the feature data...
 	    #      Smpl-$s-ftcol($f)$c
-	    print('#',join("\t",@data_header),"\t",
+	    print(($data_header[0] =~ /^#/ ? '' : '#'),
+		  join("\t",@data_header),"\t",
 
 		  #Join together columns associated with all the sets of
 		  #coordinates in the input file
@@ -1385,9 +1393,15 @@ while(nextFileSet())
 			 my $c = ($#data_start1_cols > 0 ?
 				  '[' . ($_ + 1) . ']' : '');
 
+			 #TODO: The following grep is a rather hacky bug fix.
+			 #      Improve it.
 			 my @feat_hdrs =
-			   @{$feat_headers->{$feat_file}};
+			   map {$feat_headers->{$feat_file}->[$_]}
+			     grep {scalar(@feat_out_inds) == 0 ||
+				     $_ < scalar(@feat_out_inds)}
+			       (0..$#{$feat_headers->{$feat_file}});
 			 my $map_result = '';
+			 my $first_time = 1;
 
 			 #For each search_stream
 			 foreach my $search_stream (@$search_streams)
@@ -1426,7 +1440,7 @@ while(nextFileSet())
 				   {$map_result = "NumSamples$c$or\t" .
 				      "SumDistances$c$or\t"}
 
-				 $map_result .=
+				 $map_result .= ($first_time ? '' : "\t") .
 				   #Note, if no samples were indicated, it is
 				   #assumed that a sample name using a empty
 				   #string is in the current sample hash
@@ -1447,6 +1461,7 @@ while(nextFileSet())
 					sort {$a cmp $b}
 					keys(%$current_sample_hash));
 
+				 $first_time = 0;
 		               }#foreach feat_orient
 			   }#foreach search_stream
 
