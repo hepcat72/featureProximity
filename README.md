@@ -4,50 +4,17 @@ Robert W. Leach
 
 Created: 11/2/2011
 
-* **WHAT IS THIS**: This script takes an input data file with chromosomal
-                coordinates and a feature file also with chromosomal
-                coordinates (and optional sample IDs) and reports the closest
-                feature to each pair of input coordinates.  Both the input file
-                and feature file are optionally allowed to have multiple pairs
-                of coordinates (e.g. structural variant coordinates that
-                have been narrowed down to a region identifying a breakpoint).
-                Breakpoints come in pairs, hence multiple allowed regions.  You
-                can either input the structural variants as the feature file or
-                input data file.  The input data file coordinates will be
-                output with the closest feature to each region.  Sample
-                information is only used in the feature file to report how many
-                samples have structural variant breakpoints near the input
-                coordinate pairs.
+* **WHAT IS THIS**: This script takes an input data file with chromosomal coordinates and a feature file also with chromosomal coordinates (and optional sample IDs) and reports the closest feature to each pair of input coordinates.  Both the input file and feature file are optionally allowed to have multiple pairs of coordinates (e.g. structural variant coordinates that have been narrowed down to a region identifying a breakpoint).  Breakpoints come in pairs, hence multiple allowed regions.  You can either input the structural variants as the feature file or input data file.  The input data file coordinates will be output with the closest feature to each region.  Sample information is only used in the feature file to report how many samples have structural variant breakpoints near the input coordinate pairs.
 
 * **INPUT FORMAT**: Tab-delimited text file.
 
 * **FEATURE FILE FORMAT**: Tab-delimited text file.
 
-* **OUTPUT FORMAT**: Tab-delimited text file.  Columns from the input data file
-                 and feature file are all reported in the same order unless
-                 otherwise specified by the -m or -w options respectively.
-                 Intervening columns indicating feature distances of closest
-                 features among samples are reported.  If -u, -d, -v, -x, or -t
-                 are supplied, the feature column set specified by -w and
-                 associated intervening columns are multiplied.  See column
-                 headers to know which columns contain features associated to
-                 which samples, regions, and orientations.  Column headers in
-                 the input files will be re-used if they can be identified.
-                 Otherwise, columns from the input data files will have headers
-                 formatted as 'datcol(#)' and columns from the feature file
-                 will be formatted as 'ftcol(#)' where '#' indicates column
-                 number from the original input/feature file.  Here is an
-                 example of a full column header and what it means:
+* **OUTPUT FORMAT**: Tab-delimited text file.  Columns from the input data file and feature file are all reported in the same order unless otherwise specified by the -m or -w options respectively.  Intervening columns indicating feature distances of closest features among samples are reported.  If -u, -d, -v, -x, or -t are supplied, the feature column set specified by -w and associated intervening columns are multiplied.  See column headers to know which columns contain features associated to which samples, regions, and orientations.  Column headers in the input files will be re-used if they can be identified.  Otherwise, columns from the input data files will have headers formatted as 'datcol(#)' and columns from the feature file will be formatted as 'ftcol(#)' where '#' indicates column number from the original input/feature file.  Here is an example of a full column header and what it means.  Note, not all column headers are this complex.
 
-                 Smpl-abc-ftcol(2)[1]{over,opp}
+    Smpl-abc-ftcol(2)[1]{over,opp}
 
-                 This column contains features that were part of sample "abc"
-                 (the string "abc" was parsed from a sample column in the
-                 feature file).  This is column 2 from the feature file.  It
-                 contains features that were found close to the first
-                 chr/start/stop in the input data file.  It also only contains
-                 features that overlap the input data coordinates on the
-                 opposite strand.
+This column contains features that were part of sample "abc" (parsed from the sample column in a feature file).  The feature file did not have a column header for this column, thus it was designated "ftcol", and it was the second "(2)" column in the feature file.  It contains features that were found close to the first ("1") series of chr/start/stop columns in the input data file (note, there may be multiple such columns in the input file - e.g. structural variation break points).  It also only contains features that "over"lap the input data coordinates on the "opp"osite strand.
 
 
 ## USAGE:
