@@ -52,7 +52,7 @@ Created: 11/2/2011
 
 ## USAGE:
 
-     **featureProximity.pl -i "input file(s)" [options]**
+     featureProximity.pl -i "input file(s)" [options]
 
      -i|--data-file*      REQUIRED Space-separated tab-delimited data file(s)
         --input-file               which contain a unique data ID for each row,
