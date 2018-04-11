@@ -1,10 +1,10 @@
 # featureProximity.pl version 3.8
-Copyright 2017
-Robert W. Leach
-Created: 11/2/2011
-Last Modified: Thu Mar 16 16:16:22 2017
 
-* WHAT IS THIS: This script takes an input data file with chromosomal
+Robert W. Leach
+
+Created: 11/2/2011
+
+* **WHAT IS THIS**: This script takes an input data file with chromosomal
                 coordinates and a feature file also with chromosomal
                 coordinates (and optional sample IDs) and reports the closest
                 feature to each pair of input coordinates.  Both the input file
@@ -19,12 +19,12 @@ Last Modified: Thu Mar 16 16:16:22 2017
                 samples have structural variant breakpoints near the input
                 coordinate pairs.
 
-* INPUT FORMAT: Tab-delimited text file.
+* **INPUT FORMAT**: Tab-delimited text file.
 
-* FEATURE FILE FORMAT: Tab-delimited text file.
+* **FEATURE FILE FORMAT**: Tab-delimited text file.
 
-* OUTPUT FORMAT: Tab-delimited text file.  Columns from the input data file and
-                 feature file are all reported in the same order unless
+* **OUTPUT FORMAT**: Tab-delimited text file.  Columns from the input data file
+                 and feature file are all reported in the same order unless
                  otherwise specified by the -m or -w options respectively.
                  Intervening columns indicating feature distances of closest
                  features among samples are reported.  If -u, -d, -v, -x, or -t
@@ -52,7 +52,7 @@ Last Modified: Thu Mar 16 16:16:22 2017
 
 ## USAGE:
 
-     featureProximity.pl -i "input file(s)" [options]
+     **featureProximity.pl -i "input file(s)" [options]**
 
      -i|--data-file*      REQUIRED Space-separated tab-delimited data file(s)
         --input-file               which contain a unique data ID for each row,
