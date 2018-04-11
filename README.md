@@ -1,8 +1,10 @@
-# featureProximity.pl version 3.8
+# featureProximity.pl version 3
 
 Robert W. Leach
 
 Created: 11/2/2011
+
+## SUMMARY
 
 * **WHAT IS THIS**: This script takes an input data file with chromosomal coordinates and a feature file also with chromosomal coordinates (and optional sample IDs) and reports the closest feature to each pair of input coordinates.  Both the input file and feature file are optionally allowed to have multiple pairs of coordinates (e.g. structural variant coordinates that have been narrowed down to a region identifying a breakpoint).  Breakpoints come in pairs, hence multiple allowed regions.  You can either input the structural variants as the feature file or input data file.  The input data file coordinates will be output with the closest feature to each region.  Sample information is only used in the feature file to report how many samples have structural variant breakpoints near the input coordinate pairs.
 
@@ -272,3 +274,40 @@ This column contains features that were part of sample "abc" (parsed from the sa
                                    and command-line information will be printed
                                    at the top of all output files commented
                                    with '#' characters.
+
+## INSTALLATION
+
+To install this module type the following:
+
+    perl Makefile.PL
+    make
+    make install
+
+And optionally (to remove unnecessary files):
+
+    make clean
+
+## RUNNING
+
+To get the usage:
+
+    featureProximity.pl
+
+To get a detailed usage:
+
+    featureProximity.pl --extended
+
+To get help:
+
+    featureProximity.pl --help
+
+## DEPENDENCIES
+
+This module comes with a pre-release version of a perl module called "CommandLineInterface".  CommandLineInterface requires these other modules and libraries:
+
+  Getopt::Long
+  File::Glob
+
+## COPYRIGHT AND LICENCE
+
+See LICENSE
