@@ -73,6 +73,7 @@ addArrayOption(GETOPTKEY   => 'c|data-seq-id-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Sequence ID col num of data file (-i).',
 	       DETAIL_DESC => $cflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @feat_chr1_cols = ();
@@ -82,6 +83,7 @@ addArrayOption(GETOPTKEY   => 'a|feat-seq-id-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Sequence ID col num of feat file (-f).',
 	       DETAIL_DESC => $aflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @data_start1_cols = ();
@@ -91,6 +93,7 @@ addArrayOption(GETOPTKEY   => 'b|data-start-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Start coord col num of data file (-i).',
 	       DETAIL_DESC => $bflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @feat_start1_cols = ();
@@ -100,6 +103,7 @@ addArrayOption(GETOPTKEY   => 'j|feat-start-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Start coord col num of feat file (-f).',
 	       DETAIL_DESC => $jflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @data_end1_cols = ();
@@ -109,6 +113,7 @@ addArrayOption(GETOPTKEY   => 'e|data-stop-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Stop coord col num of data file (-i).',
 	       DETAIL_DESC => $eflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @feat_end1_cols = ();
@@ -118,6 +123,7 @@ addArrayOption(GETOPTKEY   => 'k|feat-stop-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Stop coord col num of feat file (-f).',
 	       DETAIL_DESC => $kflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my $feat_sample_col = 0;
@@ -133,6 +139,7 @@ addArrayOption(GETOPTKEY   => 'm|data-out-cols=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Col nums of data file (-i) to output.',
 	       DETAIL_DESC => $mflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @feat_out_cols = ();
@@ -141,6 +148,7 @@ addArrayOption(GETOPTKEY   => 'w|feat-out-cols=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Col nums of feat file (-f) to output.',
 	       DETAIL_DESC => $wflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @data_strand_cols = ();
@@ -149,6 +157,7 @@ addArrayOption(GETOPTKEY   => 'p|data-strand-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Strand col nums of data file (-i).',
 	       DETAIL_DESC => $pflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my @feat_strand_cols = ();
@@ -157,6 +166,7 @@ addArrayOption(GETOPTKEY   => 'n|feat-strand-col=s',
 	       DEFAULT     => '0',
 	       SMRY_DESC   => 'Strand col nums of feat file (-f).',
 	       DETAIL_DESC => $nflag_desc,
+	       DELIMITER   => '\D+',
 	       INTERPOLATE => 1);
 
 my $search_upstream = 0;
@@ -513,7 +523,7 @@ my $first_loop = 1;
 while(nextFileCombo())
   {
     my $data_file = getInfile($iid);
-    my $feat_file  = getInfile($fid);
+    my $feat_file = getInfile($fid);
 
     #Keep track of the chromosome names to make sure they're in the same
     #format in both the input files and the feature files
